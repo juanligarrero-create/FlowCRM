@@ -3,6 +3,7 @@ import "./Sidebar.css";
 import {
   LayoutDashboard,
   Users,
+  BriefcaseBusiness,
   MessageCircle,
   Megaphone,
   Bot,
@@ -21,6 +22,11 @@ function Sidebar() {
       name: "Contacts",
       path: "/contacts",
       icon: Users,
+    },
+    {
+      name: "Deals",
+      path: "/deals",
+      icon: BriefcaseBusiness,
     },
     {
       name: "WhatsApp",
@@ -63,21 +69,27 @@ function Sidebar() {
       <nav className="sidebar__navigation">
         <p className="sidebar__section-title">Workspace</p>
 
-        {menuItems.map((item) => (
-          <NavLink
-            key={item.name}
-            to={item.path}
-            className={({ isActive }) =>
-              `sidebar__link ${isActive ? "sidebar__link--active" : ""}`
-            }
-          >
-            <span className="sidebar__link-icon">
-              <item.icon size={18} />
-            </span>
+        {menuItems.map((item) => {
+          const Icon = item.icon;
 
-            <span>{item.name}</span>
-          </NavLink>
-        ))}
+          return (
+            <NavLink
+              key={item.name}
+              to={item.path}
+              className={({ isActive }) =>
+                `sidebar__link ${
+                  isActive ? "sidebar__link--active" : ""
+                }`
+              }
+            >
+              <span className="sidebar__link-icon">
+                <Icon size={18} />
+              </span>
+
+              <span>{item.name}</span>
+            </NavLink>
+          );
+        })}
       </nav>
 
       <div className="sidebar__footer">
