@@ -1,14 +1,15 @@
 import { NavLink } from "react-router-dom";
 import "./Sidebar.css";
 import {
-  LayoutDashboard,
-  Users,
-  BriefcaseBusiness,
-  MessageCircle,
-  Megaphone,
-  Bot,
   BarChart3,
+  Bot,
+  BriefcaseBusiness,
+  Building2,
+  LayoutDashboard,
+  Megaphone,
+  MessageCircle,
   Settings,
+  Users,
 } from "lucide-react";
 
 function Sidebar() {
@@ -22,6 +23,11 @@ function Sidebar() {
       name: "Contacts",
       path: "/contacts",
       icon: Users,
+    },
+    {
+      name: "Companies",
+      path: "/companies",
+      icon: Building2,
     },
     {
       name: "Deals",
@@ -62,7 +68,9 @@ function Sidebar() {
 
         <div>
           <h1 className="sidebar__title">FlowCRM</h1>
-          <p className="sidebar__subtitle">Automation System</p>
+          <p className="sidebar__subtitle">
+            Automation System
+          </p>
         </div>
       </div>
 
@@ -97,8 +105,13 @@ function Sidebar() {
           <div className="sidebar__avatar">JL</div>
 
           <div>
-            <p className="sidebar__profile-name">Juan Ligarrero</p>
-            <p className="sidebar__profile-role">Administrator</p>
+            <p className="sidebar__profile-name">
+              Juan Ligarrero
+            </p>
+
+            <p className="sidebar__profile-role">
+              Administrator
+            </p>
           </div>
         </div>
       </div>
