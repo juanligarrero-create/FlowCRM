@@ -5,6 +5,7 @@ import {
   Bot,
   BriefcaseBusiness,
   Building2,
+  CheckSquare,
   LayoutDashboard,
   Megaphone,
   MessageCircle,
@@ -33,6 +34,11 @@ function Sidebar() {
       name: "Deals",
       path: "/deals",
       icon: BriefcaseBusiness,
+    },
+    {
+      name: "Tasks",
+      path: "/tasks",
+      icon: CheckSquare,
     },
     {
       name: "WhatsApp",
@@ -68,9 +74,7 @@ function Sidebar() {
 
         <div>
           <h1 className="sidebar__title">FlowCRM</h1>
-          <p className="sidebar__subtitle">
-            Automation System
-          </p>
+          <p className="sidebar__subtitle">Automation System</p>
         </div>
       </div>
 
