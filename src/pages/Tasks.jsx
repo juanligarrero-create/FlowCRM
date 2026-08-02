@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
+  Building2,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -19,6 +21,7 @@ import "./Tasks.css";
 
 const taskStatuses = ["To Do", "In Progress", "Completed"];
 const taskPriorities = ["Low", "Medium", "High"];
+const relatedTypes = ["None", "Contact", "Company"];
 
 const emptyTask = {
   title: "",
@@ -26,64 +29,93 @@ const emptyTask = {
   status: "To Do",
   priority: "Medium",
   dueDate: "",
-  relatedTo: "",
+  relatedType: "None",
+  relatedId: "",
+  relatedName: "",
 };
 
 const initialTasks = [
   {
     id: 1,
     title: "Call Sarah Johnson",
-    description: "Discuss the CRM automation package and confirm next steps.",
+    description:
+      "Discuss the CRM automation package and confirm next steps.",
     status: "To Do",
     priority: "High",
     dueDate: "2026-08-01",
-    relatedTo: "Sarah Johnson",
+    relatedType: "Contact",
+    relatedId: "1",
+    relatedName: "Sarah Johnson",
   },
   {
     id: 2,
     title: "Send proposal to GreenTech",
-    description: "Send the updated customer-support automation proposal.",
+    description:
+      "Send the updated customer-support automation proposal.",
     status: "In Progress",
     priority: "High",
     dueDate: "2026-08-02",
-    relatedTo: "GreenTech",
+    relatedType: "Company",
+    relatedId: "3",
+    relatedName: "GreenTech",
   },
   {
     id: 3,
     title: "Prepare Northstar demo",
-    description: "Configure the WhatsApp sales integration demo.",
+    description:
+      "Configure the WhatsApp sales integration demo.",
     status: "To Do",
     priority: "Medium",
     dueDate: "2026-08-04",
-    relatedTo: "Northstar",
+    relatedType: "Company",
+    relatedId: "2",
+    relatedName: "Northstar",
   },
   {
     id: 4,
     title: "Review campaign performance",
-    description: "Check the latest conversion and response metrics.",
+    description:
+      "Check the latest conversion and response metrics.",
     status: "Completed",
     priority: "Low",
     dueDate: "2026-07-31",
-    relatedTo: "Marketing Campaign",
+    relatedType: "None",
+    relatedId: "",
+    relatedName: "",
   },
   {
     id: 5,
     title: "Follow up with Apex Systems",
-    description: "Confirm whether the enterprise CRM proposal was reviewed.",
+    description:
+      "Confirm whether the enterprise CRM proposal was reviewed.",
     status: "To Do",
     priority: "Medium",
     dueDate: "2026-07-30",
-    relatedTo: "Apex Systems",
+    relatedType: "Company",
+    relatedId: "4",
+    relatedName: "Apex Systems",
   },
 ];
 
 function Tasks() {
+  const navigate = useNavigate();
+
   const [tasks, setTasks] = useState(() => {
     const savedTasks = localStorage.getItem("flowcrm-tasks");
 
     if (savedTasks) {
       try {
-        return JSON.parse(savedTasks);
+        const parsedTasks = JSON.parse(savedTasks);
+
+        return parsedTasks.map((task) => ({
+          ...task,
+          relatedType:
+            task.relatedType ||
+            (task.relatedTo ? "Company" : "None"),
+          relatedId: String(task.relatedId || ""),
+          relatedName:
+            task.relatedName || task.relatedTo || "",
+        }));
       } catch {
         return initialTasks;
       }
@@ -92,21 +124,61 @@ function Tasks() {
     return initialTasks;
   });
 
+  const contacts = useMemo(() => {
+    const savedContacts = localStorage.getItem(
+      "flowcrm-contacts"
+    );
+
+    if (!savedContacts) {
+      return [];
+    }
+
+    try {
+      return JSON.parse(savedContacts);
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const companies = useMemo(() => {
+    const savedCompanies = localStorage.getItem(
+      "flowcrm-companies"
+    );
+
+    if (!savedCompanies) {
+      return [];
+    }
+
+    try {
+      return JSON.parse(savedCompanies);
+    } catch {
+      return [];
+    }
+  }, []);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [priorityFilter, setPriorityFilter] = useState("All");
+  const [priorityFilter, setPriorityFilter] =
+    useState("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingTaskId, setEditingTaskId] = useState(null);
-  const [taskForm, setTaskForm] = useState({ ...emptyTask });
+  const [editingTaskId, setEditingTaskId] =
+    useState(null);
+  const [taskForm, setTaskForm] = useState({
+    ...emptyTask,
+  });
   const [formError, setFormError] = useState("");
   const [openMenuId, setOpenMenuId] = useState(null);
 
   useEffect(() => {
-    localStorage.setItem("flowcrm-tasks", JSON.stringify(tasks));
+    localStorage.setItem(
+      "flowcrm-tasks",
+      JSON.stringify(tasks)
+    );
   }, [tasks]);
 
-  const today = new Date();
-  const todayString = today.toISOString().split("T")[0];
+  const todayString = new Date()
+    .toISOString()
+    .split("T")[0];
 
   const isOverdue = (task) =>
     task.status !== "Completed" &&
@@ -126,38 +198,82 @@ function Tasks() {
   ).length;
 
   const filteredTasks = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedSearch = searchTerm
+      .trim()
+      .toLowerCase();
 
     return tasks.filter((task) => {
+      const relatedName =
+        task.relatedName || task.relatedTo || "";
+
       const matchesSearch =
-        task.title.toLowerCase().includes(normalizedSearch) ||
-        task.description.toLowerCase().includes(normalizedSearch) ||
-        task.relatedTo.toLowerCase().includes(normalizedSearch);
+        task.title
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        task.description
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        relatedName
+          .toLowerCase()
+          .includes(normalizedSearch);
 
       const matchesStatus =
-        statusFilter === "All" || task.status === statusFilter;
+        statusFilter === "All" ||
+        task.status === statusFilter;
 
       const matchesPriority =
         priorityFilter === "All" ||
         task.priority === priorityFilter;
 
-      return matchesSearch && matchesStatus && matchesPriority;
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesPriority
+      );
     });
-  }, [tasks, searchTerm, statusFilter, priorityFilter]);
+  }, [
+    tasks,
+    searchTerm,
+    statusFilter,
+    priorityFilter,
+  ]);
+
+  const availableRelatedRecords = useMemo(() => {
+    if (taskForm.relatedType === "Contact") {
+      return contacts.map((contact) => ({
+        id: String(contact.id),
+        name: contact.name,
+        subtitle: contact.company,
+      }));
+    }
+
+    if (taskForm.relatedType === "Company") {
+      return companies.map((company) => ({
+        id: String(company.id),
+        name: company.name,
+        subtitle: company.industry,
+      }));
+    }
+
+    return [];
+  }, [
+    taskForm.relatedType,
+    contacts,
+    companies,
+  ]);
 
   const formatDate = (date) => {
     if (!date) {
       return "No due date";
     }
 
-    return new Date(`${date}T00:00:00`).toLocaleDateString(
-      "en-US",
-      {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }
-    );
+    return new Date(
+      `${date}T00:00:00`
+    ).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   const closeModal = () => {
@@ -177,17 +293,48 @@ function Tasks() {
 
   const openEditTaskModal = (task) => {
     setEditingTaskId(task.id);
+
     setTaskForm({
       title: task.title,
       description: task.description,
       status: task.status,
       priority: task.priority,
       dueDate: task.dueDate,
-      relatedTo: task.relatedTo,
+      relatedType: task.relatedType || "None",
+      relatedId: String(task.relatedId || ""),
+      relatedName:
+        task.relatedName || task.relatedTo || "",
     });
+
     setOpenMenuId(null);
     setFormError("");
     setIsModalOpen(true);
+  };
+
+  const handleRelatedTypeChange = (event) => {
+    const newRelatedType = event.target.value;
+
+    setTaskForm({
+      ...taskForm,
+      relatedType: newRelatedType,
+      relatedId: "",
+      relatedName: "",
+    });
+  };
+
+  const handleRelatedRecordChange = (event) => {
+    const selectedId = event.target.value;
+
+    const selectedRecord =
+      availableRelatedRecords.find(
+        (record) => record.id === selectedId
+      );
+
+    setTaskForm({
+      ...taskForm,
+      relatedId: selectedId,
+      relatedName: selectedRecord?.name || "",
+    });
   };
 
   const handleSaveTask = (event) => {
@@ -196,12 +343,35 @@ function Tasks() {
     if (
       !taskForm.title.trim() ||
       !taskForm.description.trim() ||
-      !taskForm.dueDate ||
-      !taskForm.relatedTo.trim()
+      !taskForm.dueDate
     ) {
-      setFormError("Please complete all task fields.");
+      setFormError(
+        "Please complete the title, description, and due date."
+      );
       return;
     }
+
+    if (
+      taskForm.relatedType !== "None" &&
+      !taskForm.relatedId
+    ) {
+      setFormError(
+        `Please select a related ${taskForm.relatedType.toLowerCase()}.`
+      );
+      return;
+    }
+
+    const normalizedTask = {
+      ...taskForm,
+      relatedId:
+        taskForm.relatedType === "None"
+          ? ""
+          : String(taskForm.relatedId),
+      relatedName:
+        taskForm.relatedType === "None"
+          ? ""
+          : taskForm.relatedName,
+    };
 
     if (editingTaskId !== null) {
       setTasks((currentTasks) =>
@@ -209,7 +379,7 @@ function Tasks() {
           task.id === editingTaskId
             ? {
                 ...task,
-                ...taskForm,
+                ...normalizedTask,
               }
             : task
         )
@@ -217,7 +387,7 @@ function Tasks() {
     } else {
       const newTask = {
         id: Date.now(),
-        ...taskForm,
+        ...normalizedTask,
       };
 
       setTasks((currentTasks) => [
@@ -239,7 +409,9 @@ function Tasks() {
     }
 
     setTasks((currentTasks) =>
-      currentTasks.filter((task) => task.id !== taskId)
+      currentTasks.filter(
+        (task) => task.id !== taskId
+      )
     );
 
     setOpenMenuId(null);
@@ -260,6 +432,49 @@ function Tasks() {
     setOpenMenuId(null);
   };
 
+const openRelatedRecord = (task) => {
+  const relatedName =
+    task.relatedName || task.relatedTo || "";
+
+  if (task.relatedType === "Contact") {
+    let contactId = task.relatedId;
+
+    if (!contactId && relatedName) {
+      const matchingContact = contacts.find(
+        (contact) =>
+          contact.name.toLowerCase() ===
+          relatedName.toLowerCase()
+      );
+
+      contactId = matchingContact?.id;
+    }
+
+    if (contactId) {
+      navigate(`/contacts/${contactId}`);
+    }
+
+    return;
+  }
+
+  if (task.relatedType === "Company") {
+    let companyId = task.relatedId;
+
+    if (!companyId && relatedName) {
+      const matchingCompany = companies.find(
+        (company) =>
+          company.name.toLowerCase() ===
+          relatedName.toLowerCase()
+      );
+
+      companyId = matchingCompany?.id;
+    }
+
+    if (companyId) {
+      navigate(`/companies/${companyId}`);
+    }
+  }
+};
+
   const getStatusIcon = (status) => {
     if (status === "Completed") {
       return <CheckCircle2 size={20} />;
@@ -272,12 +487,21 @@ function Tasks() {
     return <Circle size={20} />;
   };
 
+  const getRelatedIcon = (relatedType) => {
+    if (relatedType === "Company") {
+      return <Building2 size={14} />;
+    }
+
+    return <UserRound size={14} />;
+  };
   return (
     <div className="tasks-page">
       <section className="tasks-page__header">
         <div>
           <h1>Tasks</h1>
-          <p>Track activities, follow-ups, and deadlines.</p>
+          <p>
+            Track activities, follow-ups, and deadlines.
+          </p>
         </div>
 
         <button
@@ -342,7 +566,7 @@ function Tasks() {
 
           <input
             type="text"
-            placeholder="Search tasks, descriptions, or related records..."
+            placeholder="Search tasks or related records..."
             value={searchTerm}
             onChange={(event) =>
               setSearchTerm(event.target.value)
@@ -409,7 +633,6 @@ function Tasks() {
                 {statusTasks.length === 0 ? (
                   <div className="tasks-column__empty">
                     <CheckCircle2 size={27} />
-
                     <p>No tasks here.</p>
 
                     <button
@@ -420,155 +643,185 @@ function Tasks() {
                     </button>
                   </div>
                 ) : (
-                  statusTasks.map((task) => (
-                    <article
-                      className={`task-card ${
-                        task.status === "Completed"
-                          ? "task-card--completed"
-                          : ""
-                      }`}
-                      key={task.id}
-                    >
-                      <div className="task-card__top">
-                        <button
-                          type="button"
-                          className={`task-card__status-icon task-card__status-icon--${task.status
-                            .toLowerCase()
-                            .replaceAll(" ", "-")}`}
-                          aria-label={`Change ${task.title} status`}
-                          onClick={() =>
-                            updateTaskStatus(
-                              task.id,
-                              task.status === "Completed"
-                                ? "To Do"
-                                : "Completed"
-                            )
-                          }
-                        >
-                          {getStatusIcon(task.status)}
-                        </button>
+                  statusTasks.map((task) => {
+                    const relatedName =
+                      task.relatedName ||
+                      task.relatedTo ||
+                      "";
 
-                        <div className="task-card__content">
-                          <h3>{task.title}</h3>
-
-                          <p>{task.description}</p>
-                        </div>
-
-                        <div className="task-card__menu">
+                    return (
+                      <article
+                        className={`task-card ${
+                          task.status === "Completed"
+                            ? "task-card--completed"
+                            : ""
+                        }`}
+                        key={task.id}
+                      >
+                        <div className="task-card__top">
                           <button
                             type="button"
-                            aria-label={`Actions for ${task.title}`}
+                            className={`task-card__status-icon task-card__status-icon--${task.status
+                              .toLowerCase()
+                              .replaceAll(" ", "-")}`}
+                            aria-label={`Change ${task.title} status`}
                             onClick={() =>
-                              setOpenMenuId(
-                                openMenuId === task.id
-                                  ? null
-                                  : task.id
+                              updateTaskStatus(
+                                task.id,
+                                task.status === "Completed"
+                                  ? "To Do"
+                                  : "Completed"
                               )
                             }
                           >
-                            <MoreHorizontal size={19} />
+                            {getStatusIcon(task.status)}
                           </button>
 
-                          {openMenuId === task.id && (
-                            <div className="task-card__dropdown">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openEditTaskModal(task)
-                                }
-                              >
-                                <Edit3 size={15} />
-                                Edit task
-                              </button>
+                          <div className="task-card__content">
+                            <h3>{task.title}</h3>
+                            <p>{task.description}</p>
+                          </div>
 
-                              {task.status !== "In Progress" && (
+                          <div className="task-card__menu">
+                            <button
+                              type="button"
+                              aria-label={`Actions for ${task.title}`}
+                              onClick={() =>
+                                setOpenMenuId(
+                                  openMenuId === task.id
+                                    ? null
+                                    : task.id
+                                )
+                              }
+                            >
+                              <MoreHorizontal size={19} />
+                            </button>
+
+                            {openMenuId === task.id && (
+                              <div className="task-card__dropdown">
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    updateTaskStatus(
-                                      task.id,
-                                      "In Progress"
-                                    )
+                                    openEditTaskModal(task)
                                   }
                                 >
-                                  <Clock3 size={15} />
-                                  Mark in progress
+                                  <Edit3 size={15} />
+                                  Edit task
                                 </button>
-                              )}
 
-                              {task.status !== "Completed" ? (
+                                {task.status !==
+                                  "In Progress" && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateTaskStatus(
+                                        task.id,
+                                        "In Progress"
+                                      )
+                                    }
+                                  >
+                                    <Clock3 size={15} />
+                                    Mark in progress
+                                  </button>
+                                )}
+
+                                {task.status !== "Completed" ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateTaskStatus(
+                                        task.id,
+                                        "Completed"
+                                      )
+                                    }
+                                  >
+                                    <Check size={15} />
+                                    Mark completed
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateTaskStatus(
+                                        task.id,
+                                        "To Do"
+                                      )
+                                    }
+                                  >
+                                    <RotateCcw size={15} />
+                                    Reopen task
+                                  </button>
+                                )}
+
                                 <button
                                   type="button"
+                                  className="task-card__delete"
                                   onClick={() =>
-                                    updateTaskStatus(
-                                      task.id,
-                                      "Completed"
-                                    )
+                                    handleDeleteTask(task.id)
                                   }
                                 >
-                                  <Check size={15} />
-                                  Mark completed
+                                  <Trash2 size={15} />
+                                  Delete task
                                 </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    updateTaskStatus(
-                                      task.id,
-                                      "To Do"
-                                    )
-                                  }
-                                >
-                                  <RotateCcw size={15} />
-                                  Reopen task
-                                </button>
-                              )}
-
-                              <button
-                                type="button"
-                                className="task-card__delete"
-                                onClick={() =>
-                                  handleDeleteTask(task.id)
-                                }
-                              >
-                                <Trash2 size={15} />
-                                Delete task
-                              </button>
-                            </div>
-                          )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="task-card__metadata">
-                        <span
-                          className={`task-card__priority task-card__priority--${task.priority.toLowerCase()}`}
-                        >
-                          {task.priority}
-                        </span>
+                        <div className="task-card__metadata">
+                          <span
+                            className={`task-card__priority task-card__priority--${task.priority.toLowerCase()}`}
+                          >
+                            {task.priority}
+                          </span>
 
-                        <span
-                          className={`task-card__due-date ${
-                            isOverdue(task)
-                              ? "task-card__due-date--overdue"
-                              : ""
-                          }`}
-                        >
-                          <CalendarDays size={14} />
+                          <span
+                            className={`task-card__due-date ${
+                              isOverdue(task)
+                                ? "task-card__due-date--overdue"
+                                : ""
+                            }`}
+                          >
+                            <CalendarDays size={14} />
 
-                          {isOverdue(task)
-                            ? `Overdue · ${formatDate(
-                                task.dueDate
-                              )}`
-                            : formatDate(task.dueDate)}
-                        </span>
-                      </div>
+                            {isOverdue(task)
+                              ? `Overdue · ${formatDate(
+                                  task.dueDate
+                                )}`
+                              : formatDate(task.dueDate)}
+                          </span>
+                        </div>
 
-                      <div className="task-card__related">
-                        <UserRound size={14} />
-                        <span>{task.relatedTo}</span>
-                      </div>
-                    </article>
-                  ))
+                        {relatedName && (
+                          <div
+                            className="task-card__related"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() =>
+                              openRelatedRecord(task)
+                            }
+                            onKeyDown={(event) => {
+                              if (
+                                event.key === "Enter" ||
+                                event.key === " "
+                              ) {
+                                openRelatedRecord(task);
+                              }
+                            }}
+                          >
+                            {getRelatedIcon(
+                              task.relatedType
+                            )}
+
+                            <span>
+                              {task.relatedType}:{" "}
+                              {relatedName}
+                            </span>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })
                 )}
               </div>
             </article>
@@ -594,8 +847,8 @@ function Tasks() {
 
                 <p>
                   {editingTaskId !== null
-                    ? "Update this task and its deadline."
-                    : "Create a new activity or follow-up."}
+                    ? "Update this task and its relationship."
+                    : "Create a task connected to a CRM record."}
                 </p>
               </div>
 
@@ -641,7 +894,8 @@ function Tasks() {
                   onChange={(event) =>
                     setTaskForm({
                       ...taskForm,
-                      description: event.target.value,
+                      description:
+                        event.target.value,
                     })
                   }
                 />
@@ -660,7 +914,10 @@ function Tasks() {
                     }
                   >
                     {taskStatuses.map((status) => (
-                      <option value={status} key={status}>
+                      <option
+                        value={status}
+                        key={status}
+                      >
                         {status}
                       </option>
                     ))}
@@ -674,78 +931,114 @@ function Tasks() {
                     onChange={(event) =>
                       setTaskForm({
                         ...taskForm,
-                        priority: event.target.value,
+                        priority:
+                          event.target.value,
                       })
                     }
                   >
-                    {taskPriorities.map((priority) => (
-                      <option
-                        value={priority}
-                        key={priority}
-                      >
-                        {priority}
-                      </option>
-                    ))}
+                    {taskPriorities.map(
+                      (priority) => (
+                        <option
+                          value={priority}
+                          key={priority}
+                        >
+                          {priority}
+                        </option>
+                      )
+                    )}
                   </select>
                 </label>
               </div>
 
               <label>
-                Due Date
+                Due date
                 <input
                   type="date"
                   value={taskForm.dueDate}
                   onChange={(event) =>
                     setTaskForm({
                       ...taskForm,
-                      dueDate:
-                       event.target.value,
+                      dueDate: event.target.value,
                     })
                   }
                 />
               </label>
 
-              <label>
-                Related contact, company, or deal
-                <input
-                  type="text"
-                    placeholder="e.g. Bright Labs"
-                    value={taskForm.relatedTo}
-                    onChange={(event) =>
-                      setTaskForm({
-                        ...taskForm,
-                        relatedTo:
-                         event.target.value,
-                      })
+              <div className="task-modal__form-grid">
+                <label>
+                  Related record type
+                  <select
+                    value={taskForm.relatedType}
+                    onChange={
+                      handleRelatedTypeChange
                     }
-                  />
+                  >
+                    {relatedTypes.map((type) => (
+                      <option value={type} key={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
-                <div
-                className="task-modal__actions">
-                    <button
-                      type="button"
-                      className="task-modal__cancel"
-                        onClick={closeModal}
-                        >
-                        Cancel
-                      </button>
+                <label>
+                  Related record
+                  <select
+                    value={taskForm.relatedId}
+                    disabled={
+                      taskForm.relatedType === "None"
+                    }
+                    onChange={
+                      handleRelatedRecordChange
+                    }
+                  >
+                    <option value="">
+                      {taskForm.relatedType === "None"
+                        ? "No related record"
+                        : `Select a ${taskForm.relatedType.toLowerCase()}`}
+                    </option>
 
-                      <button 
-                      type="submit"
-                       className="task-modal__save">
-                        {editingTaskId !== null
-                            ? "Update Task"
-                            : "Save Task"}  
-                    </button>
-                </div>
+                    {availableRelatedRecords.map(
+                      (record) => (
+                        <option
+                          value={record.id}
+                          key={record.id}
+                        >
+                          {record.name}
+                          {record.subtitle
+                            ? ` — ${record.subtitle}`
+                            : ""}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+              </div>
+
+              <div className="task-modal__actions">
+                <button
+                  type="button"
+                  className="task-modal__cancel"
+                  onClick={closeModal}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="task-modal__save"
+                >
+                  {editingTaskId !== null
+                    ? "Update Task"
+                    : "Save Task"}
+                </button>
+              </div>
             </form>
-            </div>
+          </div>
         </div>
-        )}
+      )}
     </div>
   );
 }
 
 export default Tasks;
-              
