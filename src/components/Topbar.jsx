@@ -1,9 +1,9 @@
 import {
-  Bell,
   Moon,
   Sun,
 } from "lucide-react";
 import GlobalSearch from "./GlobalSearch.jsx";
+import NotificationCenter from "./NotificationCenter.jsx";
 import "./Topbar.css";
 
 function Topbar({ theme, onToggleTheme }) {
@@ -25,14 +25,7 @@ function Topbar({ theme, onToggleTheme }) {
           )}
         </button>
 
-        <button
-          type="button"
-          className="topbar__icon-button"
-          aria-label="Notifications"
-        >
-          <Bell size={19} />
-          <span className="topbar__notification-dot" />
-        </button>
+        <NotificationCenter />
 
         <div className="topbar__user">
           <div className="topbar__avatar">
