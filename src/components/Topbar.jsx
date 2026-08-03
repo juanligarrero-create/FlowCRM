@@ -1,22 +1,15 @@
 import {
   Bell,
   Moon,
-  Search,
   Sun,
 } from "lucide-react";
+import GlobalSearch from "./GlobalSearch.jsx";
 import "./Topbar.css";
 
 function Topbar({ theme, onToggleTheme }) {
   return (
     <header className="topbar">
-      <div className="topbar__search">
-        <Search size={18} />
-
-        <input
-          type="text"
-          placeholder="Search contacts, companies, deals, or tasks..."
-        />
-      </div>
+      <GlobalSearch />
 
       <div className="topbar__actions">
         <button
