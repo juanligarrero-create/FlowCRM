@@ -12,10 +12,12 @@ import CompanyDetails from "./pages/CompanyDetails.jsx";
 import ContactDetails from "./pages/ContactDetails.jsx";
 import Contacts from "./pages/Contacts.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import DealDetails from "./pages/DealDetails.jsx";
 import Deals from "./pages/Deals.jsx";
 import Settings from "./pages/Settings.jsx";
 import Tasks from "./pages/Tasks.jsx";
 import WhatsApp from "./pages/WhatsApp.jsx";
+
 import Layout from "./components/Layout.jsx";
 
 import "./App.css";
@@ -48,6 +50,11 @@ function App() {
           />
 
           <Route path="/deals" element={<Deals />} />
+
+          <Route
+            path="/deals/:id"
+            element={<DealDetails />}
+          />
 
           <Route path="/tasks" element={<Tasks />} />
 
