@@ -1,111 +1,279 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --app-bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --surface-muted: #f1f5f9;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  --border: #e2e8f0;
+  --border-soft: #edf0f5;
+
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-soft: #eef2ff;
+
+  --success: #059669;
+  --success-soft: #ecfdf5;
+
+  --warning: #d97706;
+  --warning-soft: #fff7ed;
+
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+
+  --shadow-sm: 0 4px 13px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 20px 55px rgba(15, 23, 42, 0.18);
+
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text-primary);
+  background: var(--app-bg);
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+:root[data-theme="dark"] {
+  --app-bg: #0f172a;
+  --surface: #172033;
+  --surface-soft: #1e293b;
+  --surface-muted: #263449;
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  --text-primary: #f8fafc;
+  --text-secondary: #d5deea;
+  --text-muted: #a9b6c8;
+  --text-faint: #7f8da3;
+
+  --border: #334155;
+  --border-soft: #2a394e;
+
+  --primary: #818cf8;
+  --primary-hover: #6366f1;
+  --primary-soft: rgba(99, 102, 241, 0.18);
+
+  --success: #34d399;
+  --success-soft: rgba(16, 185, 129, 0.14);
+
+  --warning: #fbbf24;
+  --warning-soft: rgba(245, 158, 11, 0.14);
+
+  --danger: #f87171;
+  --danger-soft: rgba(239, 68, 68, 0.14);
+
+  --shadow-sm: 0 4px 13px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.24);
+  --shadow-lg: 0 20px 55px rgba(0, 0, 0, 0.38);
+
+  color-scheme: dark;
 }
 
-body {
-  margin: 0;
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+* {
   box-sizing: border-box;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--app-bg);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
+body {
+  min-width: 320px;
+  min-height: 100vh;
   margin: 0;
+  background: var(--app-bg);
+  color: var(--text-primary);
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+button {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Base dark-mode surfaces */
+
+:root[data-theme="dark"] .layout,
+:root[data-theme="dark"] .layout__workspace,
+:root[data-theme="dark"] .main-content {
+  background: var(--app-bg);
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .dashboard,
+:root[data-theme="dark"] .contacts-page,
+:root[data-theme="dark"] .contact-details-page,
+:root[data-theme="dark"] .companies-page,
+:root[data-theme="dark"] .company-details-page,
+:root[data-theme="dark"] .deals-page,
+:root[data-theme="dark"] .tasks-page {
+  background: var(--app-bg);
+  color: var(--text-primary);
+}
+
+/* Shared cards and panels */
+
+:root[data-theme="dark"] .dashboard__card,
+:root[data-theme="dark"] .dashboard__overview-card,
+:root[data-theme="dark"] .dashboard__panel,
+:root[data-theme="dark"] .dashboard-insights__panel,
+:root[data-theme="dark"] .dashboard-insights__trends article,
+:root[data-theme="dark"] .dashboard-insights__notification-button,
+:root[data-theme="dark"] .contacts-table,
+:root[data-theme="dark"] .company-card,
+:root[data-theme="dark"] .companies-stat,
+:root[data-theme="dark"] .company-details__hero,
+:root[data-theme="dark"] .company-details__stats article,
+:root[data-theme="dark"] .company-details__panel,
+:root[data-theme="dark"] .contact-details__hero,
+:root[data-theme="dark"] .contact-details__panel,
+:root[data-theme="dark"] .contact-details__quick-actions button,
+:root[data-theme="dark"] .deals-stat,
+:root[data-theme="dark"] .deal-card,
+:root[data-theme="dark"] .tasks-stat,
+:root[data-theme="dark"] .task-card {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Headings */
+
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] strong {
+  color: var(--text-primary);
+}
+
+/* Secondary text */
+
+:root[data-theme="dark"] p,
+:root[data-theme="dark"] small,
+:root[data-theme="dark"] label {
+  color: var(--text-muted);
+}
+
+/* Inputs and toolbar controls */
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] .contacts-page__search,
+:root[data-theme="dark"] .companies-page__search,
+:root[data-theme="dark"] .tasks-page__search {
+  border-color: var(--border);
+  background: var(--surface-soft);
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder {
+  color: var(--text-faint);
+}
+
+/* Repeated inner rows */
+
+:root[data-theme="dark"] .dashboard__activity,
+:root[data-theme="dark"] .dashboard__task,
+:root[data-theme="dark"] .dashboard__health-list > div,
+:root[data-theme="dark"] .dashboard__quick-actions button,
+:root[data-theme="dark"] .dashboard-insights__notification,
+:root[data-theme="dark"] .company-card__details div,
+:root[data-theme="dark"] .company-details__contacts > button,
+:root[data-theme="dark"] .company-details__deals article,
+:root[data-theme="dark"] .company-details__information > div,
+:root[data-theme="dark"] .company-details__summary div,
+:root[data-theme="dark"] .company-details__task,
+:root[data-theme="dark"] .contact-details__information-item,
+:root[data-theme="dark"] .contact-details__summary div,
+:root[data-theme="dark"] .contact-details__task {
+  border-color: var(--border-soft);
+  background: var(--surface-soft);
+}
+
+/* Kanban columns */
+
+:root[data-theme="dark"] .deals-column,
+:root[data-theme="dark"] .tasks-column {
+  border-color: var(--border);
+  background: #121c2d;
+}
+
+/* Modals and dropdowns */
+
+:root[data-theme="dark"] .contact-modal__content,
+:root[data-theme="dark"] .contact-details-modal__content,
+:root[data-theme="dark"] .company-modal__content,
+:root[data-theme="dark"] .company-details-modal__content,
+:root[data-theme="dark"] .deal-modal__content,
+:root[data-theme="dark"] .task-modal__content,
+:root[data-theme="dark"] .contacts-table__dropdown,
+:root[data-theme="dark"] .company-card__dropdown,
+:root[data-theme="dark"] .deal-card__dropdown,
+:root[data-theme="dark"] .task-card__dropdown,
+:root[data-theme="dark"] .dashboard-insights__notifications {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Calendar */
+
+:root[data-theme="dark"]
+  .dashboard-insights__calendar-header
+  button {
+  border-color: var(--border);
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+}
+
+:root[data-theme="dark"]
+  .dashboard-insights__calendar-day:hover {
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+
+:root[data-theme="dark"]
+  .dashboard-insights__calendar-day--today {
+  border-color: #6366f1;
+  background: var(--primary-soft);
+  color: #a5b4fc;
+}
+
+/* Scrollbars */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+:root[data-theme="dark"] * {
+  scrollbar-color: #475569 transparent;
 }
