@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import DashboardInsights from "../components/DashboardInsights.jsx";
 import {
   AlertCircle,
   ArrowRight,
@@ -716,6 +717,8 @@ function Dashboard() {
           </div>
         </article>
       </section>
+
+      <DashboardInsights />
     </div>
   );
 }
