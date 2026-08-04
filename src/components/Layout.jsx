@@ -3,6 +3,7 @@ import "./Layout.css";
 
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import AIAssistant from "./AIAssistant";
 
 function Layout({ children }) {
   const [theme, setTheme] = useState(() => {
@@ -44,6 +45,8 @@ function Layout({ children }) {
           {children}
         </main>
       </div>
+
+      <AIAssistant />
     </div>
   );
 }
