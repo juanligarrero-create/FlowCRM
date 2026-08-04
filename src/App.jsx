@@ -19,71 +19,77 @@ import Tasks from "./pages/Tasks.jsx";
 import WhatsApp from "./pages/WhatsApp.jsx";
 
 import Layout from "./components/Layout.jsx";
+import { ToastProvider } from "./components/ToastProvider.jsx";
 
 import "./App.css";
 
 function App() {
   return (
     <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
+      <ToastProvider>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
 
-          <Route
-            path="/contacts"
-            element={<Contacts />}
-          />
+            <Route
+              path="/contacts"
+              element={<Contacts />}
+            />
 
-          <Route
-            path="/contacts/:id"
-            element={<ContactDetails />}
-          />
+            <Route
+              path="/contacts/:id"
+              element={<ContactDetails />}
+            />
 
-          <Route
-            path="/companies"
-            element={<Companies />}
-          />
+            <Route
+              path="/companies"
+              element={<Companies />}
+            />
 
-          <Route
-            path="/companies/:id"
-            element={<CompanyDetails />}
-          />
+            <Route
+              path="/companies/:id"
+              element={<CompanyDetails />}
+            />
 
-          <Route path="/deals" element={<Deals />} />
+            <Route
+              path="/deals"
+              element={<Deals />}
+            />
 
-          <Route
-            path="/deals/:id"
-            element={<DealDetails />}
-          />
+            <Route
+              path="/deals/:id"
+              element={<DealDetails />}
+            />
 
-          <Route path="/tasks" element={<Tasks />} />
+            <Route path="/tasks" element={<Tasks />} />
 
-          <Route
-            path="/whatsapp"
-            element={<WhatsApp />}
-          />
+            <Route
+              path="/whatsapp"
+              element={<WhatsApp />}
+            />
 
-          <Route
-            path="/campaigns"
-            element={<Campaigns />}
-          />
+            <Route
+              path="/campaigns"
+              element={<Campaigns />}
+            />
 
-          <Route
-            path="/automations"
-            element={<Automations />}
-          />
+            <Route
+              path="/automations"
+              element={<Automations />}
+            />
 
-          <Route
-            path="/analytics"
-            element={<Analytics />}
-          />
+            <Route
+              path="/analytics"
+              element={<Analytics />}
+            />
 
-          <Route
-            path="/settings"
-            element={<Settings />}
-          />
-        </Routes>
-      </Layout>
+            <Route
+              path="/settings"
+              element={<Settings />}
+            />
+          </Routes>
+        </Layout>
+      </ToastProvider>
     </BrowserRouter>
   );
 }

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
+import { useToast } from "../components/ToastProvider.jsx";
 import {
   Building2,
   CalendarDays,
@@ -149,6 +151,7 @@ const normalizeDeal = (deal) => ({
 
 function Deals() {
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [deals, setDeals] = useState(() => {
     const savedDeals = localStorage.getItem("flowcrm-deals");
@@ -167,7 +170,7 @@ function Deals() {
 
     return initialDeals;
   });
-
+  const [dealToDelete, setDealToDelete] = useState(null);
   const companies = useMemo(
     () => readStoredArray("flowcrm-companies"),
     []
@@ -256,7 +259,7 @@ function Deals() {
           (total, deal) =>
             total +
             Number(deal.value || 0) *
-              (Number(deal.probability || 0) / 100),
+            (Number(deal.probability || 0) / 100),
           0
         ),
     [deals]
@@ -433,9 +436,9 @@ function Deals() {
         currentDeals.map((deal) =>
           deal.id === editingDealId
             ? {
-                ...deal,
-                ...normalizedDeal,
-              }
+              ...deal,
+              ...normalizedDeal,
+            }
             : deal
         )
       );
@@ -449,38 +452,70 @@ function Deals() {
       ]);
     }
 
+    toast.success(
+      editingDealId !== null
+        ? "Deal updated"
+        : "Deal created",
+      editingDealId !== null
+        ? `${dealForm.title} was updated successfully.`
+        : `${dealForm.title} was added to the pipeline.`
+    );
     closeModal();
   };
-const handleDeleteDeal = (dealId) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this deal?"
+  const handleDeleteDeal = (dealId) => {
+    const selectedDeal = deals.find(
+      (deal) => deal.id === dealId
     );
 
-    if (!confirmed) {
+    if (!selectedDeal) {
+      toast.error(
+        "Deal not found",
+        "The selected opportunity could not be deleted."
+      );
+      return;
+    }
+
+    setDealToDelete(selectedDeal);
+    setOpenMenuId(null);
+  };
+  const confirmDeleteDeal = () => {
+    if (!dealToDelete) {
       return;
     }
 
     setDeals((currentDeals) =>
       currentDeals.filter(
-        (deal) => deal.id !== dealId
+        (deal) => deal.id !== dealToDelete.id
       )
     );
 
-    setOpenMenuId(null);
-  };
+    toast.success(
+      "Deal deleted",
+      `${dealToDelete.title} was removed from the pipeline.`
+    );
 
+    setDealToDelete(null);
+  };
   const moveDealToStage = (dealId, stage) => {
     setDeals((currentDeals) =>
       currentDeals.map((deal) =>
         deal.id === dealId
           ? {
-              ...deal,
-              stage,
-              probability:
-                stageProbabilities[stage],
-            }
+            ...deal,
+            stage,
+            probability:
+              stageProbabilities[stage],
+          }
           : deal
       )
+    );
+    const movedDeal = deals.find(
+      (deal) => deal.id === dealId
+    );
+
+    toast.info(
+      "Deal stage updated",
+      `${movedDeal?.title || "Deal"} moved to ${stage}.`
     );
 
     setOpenMenuId(null);
@@ -676,20 +711,19 @@ const handleDeleteDeal = (dealId) => {
               (total, deal) =>
                 total +
                 Number(deal.value || 0) *
-                  (Number(
-                    deal.probability || 0
-                  ) /
-                    100),
+                (Number(
+                  deal.probability || 0
+                ) /
+                  100),
               0
             );
 
           return (
             <article
-              className={`deals-column ${
-                dragOverStage === stage
+              className={`deals-column ${dragOverStage === stage
                   ? "deals-column--drag-over"
                   : ""
-              }`}
+                }`}
               key={stage}
               onDragOver={(event) =>
                 handleDragOver(event, stage)
@@ -767,11 +801,10 @@ const handleDeleteDeal = (dealId) => {
 
                     return (
                       <article
-                        className={`deal-card ${
-                          draggedDealId === deal.id
+                        className={`deal-card ${draggedDealId === deal.id
                             ? "deal-card--dragging"
                             : ""
-                        }`}
+                          }`}
                         key={deal.id}
                         draggable
                         role="button"
@@ -931,7 +964,7 @@ const handleDeleteDeal = (dealId) => {
                             disabled={
                               stageIndex ===
                               pipelineStages.length -
-                                1
+                              1
                             }
                             onClick={(event) => {
                               event.stopPropagation();
@@ -1235,10 +1268,10 @@ const handleDeleteDeal = (dealId) => {
                 <strong>
                   {formatCurrency(
                     Number(dealForm.value || 0) *
-                      (Number(
-                        dealForm.probability || 0
-                      ) /
-                        100)
+                    (Number(
+                      dealForm.probability || 0
+                    ) /
+                      100)
                   )}
                 </strong>
               </div>
@@ -1265,6 +1298,20 @@ const handleDeleteDeal = (dealId) => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={dealToDelete !== null}
+        title="Delete deal?"
+        message={
+          dealToDelete
+            ? `This will permanently delete "${dealToDelete.title}". This action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete deal"
+        variant="danger"
+        onCancel={() => setDealToDelete(null)}
+        onConfirm={confirmDeleteDeal}
+      />
     </div>
   );
 }
