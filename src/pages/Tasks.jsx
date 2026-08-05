@@ -108,14 +108,18 @@ function Tasks() {
         const parsedTasks = JSON.parse(savedTasks);
 
         return parsedTasks.map((task) => ({
-          ...task,
-          relatedType:
-            task.relatedType ||
-            (task.relatedTo ? "Company" : "None"),
-          relatedId: String(task.relatedId || ""),
-          relatedName:
-            task.relatedName || task.relatedTo || "",
-        }));
+  ...task,
+  status:
+    task.status === "Pending"
+      ? "To Do"
+      : task.status,
+  relatedType:
+    task.relatedType ||
+    (task.relatedTo ? "Company" : "None"),
+  relatedId: String(task.relatedId || ""),
+  relatedName:
+    task.relatedName || task.relatedTo || "",
+}));
       } catch {
         return initialTasks;
       }
@@ -168,6 +172,7 @@ function Tasks() {
   });
   const [formError, setFormError] = useState("");
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
 
   useEffect(() => {
     localStorage.setItem(
@@ -474,7 +479,32 @@ const openRelatedRecord = (task) => {
     }
   }
 };
+const handleDragStart = (taskId) => {
+  setDraggedTaskId(taskId);
+};
 
+const handleDragEnd = () => {
+  setDraggedTaskId(null);
+};
+
+const handleDropTask = (status) => {
+  if (draggedTaskId === null) {
+    return;
+  }
+
+  setTasks((currentTasks) =>
+    currentTasks.map((task) =>
+      task.id === draggedTaskId
+        ? {
+            ...task,
+            status,
+          }
+        : task
+    )
+  );
+
+  setDraggedTaskId(null);
+};
   const getStatusIcon = (status) => {
     if (status === "Completed") {
       return <CheckCircle2 size={20} />;
@@ -612,7 +642,14 @@ const openRelatedRecord = (task) => {
           );
 
           return (
-            <article className="tasks-column" key={status}>
+            <article
+  className="tasks-column"
+  key={status}
+  onDragOver={(event) =>
+    event.preventDefault()
+  }
+  onDrop={() => handleDropTask(status)}
+>
               <div className="tasks-column__header">
                 <div>
                   <span
@@ -651,13 +688,23 @@ const openRelatedRecord = (task) => {
 
                     return (
                       <article
-                        className={`task-card ${
-                          task.status === "Completed"
-                            ? "task-card--completed"
-                            : ""
-                        }`}
-                        key={task.id}
-                      >
+  className={`task-card ${
+    task.status === "Completed"
+      ? "task-card--completed"
+      : ""
+  } ${
+    draggedTaskId === task.id
+      ? "task-card--dragging"
+      : ""
+  }`}
+  key={task.id}
+  draggable
+  onDragStart={() =>
+    handleDragStart(task.id)
+  }
+  onDragEnd={handleDragEnd}
+>
+                      
                         <div className="task-card__top">
                           <button
                             type="button"

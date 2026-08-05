@@ -15,6 +15,7 @@ import Contacts from "./pages/Contacts.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import DealDetails from "./pages/DealDetails.jsx";
 import Deals from "./pages/Deals.jsx";
+import FollowUps from "./pages/FollowUps.jsx";
 import Settings from "./pages/Settings.jsx";
 import Tasks from "./pages/Tasks.jsx";
 import WhatsApp from "./pages/WhatsApp.jsx";
@@ -55,6 +56,10 @@ function App() {
             <Route
               path="/deals"
               element={<Deals />}
+            />
+            <Route
+              path="/follow-ups"
+              element={<FollowUps />}
             />
 
             <Route

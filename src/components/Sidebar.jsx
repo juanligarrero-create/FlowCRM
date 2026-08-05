@@ -12,6 +12,7 @@ import {
   Settings,
   Sparkles,
   Users,
+  Clock3,
 } from "lucide-react";
 
 function Sidebar() {
@@ -36,6 +37,11 @@ function Sidebar() {
       path: "/deals",
       icon: BriefcaseBusiness,
     },
+    {
+  name: "Follow-ups",
+  path: "/follow-ups",
+  icon: Clock3,
+},
     {
       name: "Tasks",
       path: "/tasks",

@@ -650,3 +650,25 @@
     width: 100%;
   }
 }
+.task-card {
+  cursor: grab;
+}
+
+.task-card:active {
+  cursor: grabbing;
+}
+
+.task-card--dragging {
+  opacity: 0.45;
+  transform: scale(0.98);
+}
+
+.tasks-column {
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.tasks-column:has(.task-card--dragging) {
+  border-color: var(--primary, #4f46e5);
+}

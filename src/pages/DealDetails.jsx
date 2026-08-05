@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "../components/ToastProvider.jsx";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Activity,
   ArrowLeft,
   Building2,
   CalendarDays,
+  CalendarClock,
   CheckCircle2,
   CircleDollarSign,
   Clock3,
@@ -15,6 +17,7 @@ import {
   Phone,
   Plus,
   Save,
+  Sparkles,
   Target,
   Trash2,
   UserRound,
@@ -98,7 +101,103 @@ const formatDate = (date) => {
 };
 
 function DealDetails() {
+  const createFollowUpTask = () => {
+  const savedTasks = localStorage.getItem(
+    "flowcrm-tasks"
+  );
+
+  let currentTasks = [];
+
+  if (savedTasks) {
+    try {
+      const parsedTasks = JSON.parse(savedTasks);
+
+      currentTasks = Array.isArray(parsedTasks)
+        ? parsedTasks
+        : [];
+    } catch {
+      currentTasks = [];
+    }
+  }
+
+  const existingTask = currentTasks.find(
+    (task) =>
+      String(task.dealId) ===
+        String(deal.id) &&
+      task.status !== "Completed"
+  );
+
+  if (existingTask) {
+   toast.info(
+  "Follow-up already exists",
+  "This deal already has an active follow-up task."
+);
+    return;
+  }
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const dueDate = tomorrow
+    .toISOString()
+    .split("T")[0];
+
+  const newTask = {
+    id:
+      typeof crypto !== "undefined" &&
+      typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : Date.now(),
+    title: `Follow up: ${
+      deal.title || deal.name || "Deal"
+    }`,
+    description: `Contact ${
+      deal.contact || "the customer"
+    } regarding ${
+      deal.title || deal.name || "this deal"
+    }.`,
+    status: "To Do",
+    priority:
+      Number(deal.value || 0) >= 25000
+        ? "High"
+        : "Medium",
+    dueDate,
+    relatedType: deal.contact
+      ? "Contact"
+      : deal.company
+        ? "Company"
+        : "None",
+    relatedId:
+      deal.contactId ||
+      deal.companyId ||
+      "",
+    relatedName:
+      deal.contact ||
+      deal.company ||
+      "",
+    dealId: deal.id,
+    contactId: deal.contactId || "",
+    companyId: deal.companyId || "",
+    createdAt: new Date().toISOString(),
+  };
+
+  localStorage.setItem(
+    "flowcrm-tasks",
+    JSON.stringify([
+      newTask,
+      ...currentTasks,
+    ])
+  );
+
+ toast.success(
+  "Follow-up created",
+  `A task for "${
+    deal.title || deal.name || "this deal"
+  }" was added to the To Do column.`
+);
+};
   const navigate = useNavigate();
+  const toast = useToast();
   const { id } = useParams();
   const dealId = String(id);
 
@@ -264,6 +363,128 @@ function DealDetails() {
     (task) => task.status === "Completed"
   );
 
+const activeFollowUp = openTasks.find(
+  (task) =>
+    String(task.dealId) ===
+    String(deal?.id)
+);
+
+const dealHealth = useMemo(() => {
+  if (!deal) {
+    return null;
+  }
+
+  const probability = Number(
+    deal.probability || 0
+  );
+
+  const value = Number(deal.value || 0);
+
+  let score = 50;
+  const reasons = [];
+  const actions = [];
+
+  score += Math.min(
+    probability * 0.3,
+    30
+  );
+
+  if (activities.length > 0) {
+    score += 10;
+    reasons.push(
+      `${activities.length} customer ${
+        activities.length === 1
+          ? "activity has"
+          : "activities have"
+      } been recorded.`
+    );
+  } else {
+    score -= 15;
+    reasons.push(
+      "No customer activity has been recorded."
+    );
+    actions.push(
+      "Record a call, email, or meeting."
+    );
+  }
+
+  if (activeFollowUp) {
+    score += 10;
+    reasons.push(
+      `An active follow-up is scheduled for ${formatDate(
+        activeFollowUp.dueDate
+      )}.`
+    );
+  } else {
+    score -= 10;
+    reasons.push(
+      "There is no active follow-up task."
+    );
+    actions.push(
+      "Create a follow-up task."
+    );
+  }
+
+  if (probability < 20) {
+    actions.push(
+      "Qualify the customer’s need and budget."
+    );
+    actions.push(
+      "Schedule a discovery call."
+    );
+  } else if (probability < 60) {
+    actions.push(
+      "Address objections and send supporting information."
+    );
+  } else if (probability < 100) {
+    actions.push(
+      "Confirm decision makers and closing steps."
+    );
+  }
+
+  if (value >= 25000) {
+    reasons.push(
+      `This is a high-value opportunity worth ${formatCurrency(
+        value
+      )}.`
+    );
+  }
+
+  score = Math.max(
+    0,
+    Math.min(100, Math.round(score))
+  );
+
+  const risk =
+    score >= 75
+      ? {
+          id: "low",
+          label: "Low risk",
+        }
+      : score >= 50
+        ? {
+            id: "medium",
+            label: "Medium risk",
+          }
+        : {
+            id: "high",
+            label: "High risk",
+          };
+
+  return {
+    score,
+    risk,
+    reasons: reasons.slice(0, 4),
+    actions: [...new Set(actions)].slice(
+      0,
+      4
+    ),
+  };
+}, [
+  deal,
+  activities.length,
+  activeFollowUp,
+]);
   const getActivityIcon = (type) => {
     if (type === "Email") {
       return <Mail size={17} />;
@@ -553,7 +774,14 @@ function DealDetails() {
             <Edit3 size={17} />
             Edit deal
           </button>
-
+<button
+  type="button"
+  className="deal-details__follow-up-button"
+  onClick={createFollowUpTask}
+>
+  <CalendarClock size={17} />
+  Create follow-up
+</button>
           <button
             type="button"
             className="deal-details__delete"
@@ -918,6 +1146,97 @@ function DealDetails() {
           <section className="deal-details__panel">
             <div className="deal-details__panel-header">
               <div>
+               <section className="deal-details__panel deal-health">
+  <div className="deal-details__panel-header">
+    <div>
+      <h2>AI next best action</h2>
+
+      <p>
+        Deal health, risk signals, and recommended actions.
+      </p>
+    </div>
+
+    <Sparkles size={19} />
+  </div>
+
+  <div className="deal-health__score-row">
+    <div
+      className={`deal-health__score deal-health__score--${dealHealth.risk.id}`}
+    >
+      <strong>{dealHealth.score}</strong>
+      <span>/100</span>
+    </div>
+
+    <div>
+      <small>Deal health</small>
+
+      <strong
+        className={`deal-health__risk deal-health__risk--${dealHealth.risk.id}`}
+      >
+        {dealHealth.risk.label}
+      </strong>
+    </div>
+  </div>
+
+ <div
+  className={`deal-health__progress deal-health__progress--${dealHealth.risk.id}`}
+>
+    <span
+      style={{
+        width: `${dealHealth.score}%`,
+      }}
+    />
+  </div>
+
+  <div className="deal-health__section">
+    <strong>Why</strong>
+
+    <ul>
+      {dealHealth.reasons.map((reason) => (
+        <li key={reason}>
+          <CheckCircle2 size={14} />
+          <span>{reason}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+
+  <div className="deal-health__section">
+    <strong>Recommended actions</strong>
+
+    <ol>
+      {dealHealth.actions.map((action) => (
+        <li key={action}>{action}</li>
+      ))}
+    </ol>
+  </div>
+
+  <div className="deal-health__actions">
+    <button
+      type="button"
+      onClick={() => navigate("/ai-writer")}
+    >
+      <Mail size={15} />
+      Generate email
+    </button>
+
+    <button
+      type="button"
+      onClick={() => navigate("/whatsapp")}
+    >
+      <MessageSquare size={15} />
+      Generate WhatsApp
+    </button>
+
+    <button
+      type="button"
+      onClick={createFollowUpTask}
+    >
+      <CalendarClock size={15} />
+      Create follow-up
+    </button>
+  </div>
+</section>
                 <h2>CRM summary</h2>
 
                 <p>
