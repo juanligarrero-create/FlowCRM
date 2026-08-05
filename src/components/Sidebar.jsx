@@ -10,6 +10,7 @@ import {
   Megaphone,
   MessageCircle,
   Settings,
+  Sparkles,
   Users,
 } from "lucide-react";
 
@@ -61,6 +62,11 @@ function Sidebar() {
       icon: BarChart3,
     },
     {
+      name: "AI Writer",
+      path: "/ai-writer",
+      icon: Sparkles,
+    },
+    {
       name: "Settings",
       path: "/settings",
       icon: Settings,
@@ -74,12 +80,16 @@ function Sidebar() {
 
         <div>
           <h1 className="sidebar__title">FlowCRM</h1>
-          <p className="sidebar__subtitle">Automation System</p>
+          <p className="sidebar__subtitle">
+            Automation System
+          </p>
         </div>
       </div>
 
       <nav className="sidebar__navigation">
-        <p className="sidebar__section-title">Workspace</p>
+        <p className="sidebar__section-title">
+          Workspace
+        </p>
 
         {menuItems.map((item) => {
           const Icon = item.icon;
@@ -90,7 +100,9 @@ function Sidebar() {
               to={item.path}
               className={({ isActive }) =>
                 `sidebar__link ${
-                  isActive ? "sidebar__link--active" : ""
+                  isActive
+                    ? "sidebar__link--active"
+                    : ""
                 }`
               }
             >
@@ -106,7 +118,9 @@ function Sidebar() {
 
       <div className="sidebar__footer">
         <div className="sidebar__profile">
-          <div className="sidebar__avatar">JL</div>
+          <div className="sidebar__avatar">
+            JL
+          </div>
 
           <div>
             <p className="sidebar__profile-name">

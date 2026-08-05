@@ -4,6 +4,7 @@ import {
   Routes,
 } from "react-router-dom";
 
+import AIWriter from "./pages/AIWriter.jsx";
 import Analytics from "./pages/Analytics.jsx";
 import Automations from "./pages/Automations.jsx";
 import Campaigns from "./pages/Campaigns.jsx";
@@ -61,7 +62,10 @@ function App() {
               element={<DealDetails />}
             />
 
-            <Route path="/tasks" element={<Tasks />} />
+            <Route
+              path="/tasks"
+              element={<Tasks />}
+            />
 
             <Route
               path="/whatsapp"
@@ -81,6 +85,11 @@ function App() {
             <Route
               path="/analytics"
               element={<Analytics />}
+            />
+
+            <Route
+              path="/ai-writer"
+              element={<AIWriter />}
             />
 
             <Route
