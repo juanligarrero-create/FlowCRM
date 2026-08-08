@@ -10,7 +10,6 @@ import {
   MessageCircle,
   RefreshCw,
   Save,
-  Search,
   Sparkles,
   Trash2,
   UserRound,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import {
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -46,6 +46,7 @@ const STORAGE_KEYS = {
   templates: "flowcrm-ai-writer-templates",
   favorites:
     "flowcrm-ai-writer-favorite-templates",
+  language: "flowcrm-language",
 };
 
 const writerTypes = [
@@ -74,9 +75,9 @@ const writerTypes = [
     label: "WhatsApp message",
     labelEs: "Mensaje de WhatsApp",
     description:
-      "Create a concise and natural message for WhatsApp.",
+      "Create a concise and natural WhatsApp message.",
     descriptionEs:
-      "Crea un mensaje breve y natural para WhatsApp.",
+      "Crea un mensaje de WhatsApp breve y natural.",
     icon: MessageCircle,
   },
   {
@@ -84,9 +85,9 @@ const writerTypes = [
     label: "Meeting invitation",
     labelEs: "Invitación a reunión",
     description:
-      "Invite a prospect or customer to a meeting.",
+      "Invite a prospect or customer to a focused meeting.",
     descriptionEs:
-      "Invita a un prospecto o cliente a una reunión.",
+      "Invita a un prospecto o cliente a una reunión concreta.",
     icon: CalendarDays,
   },
   {
@@ -94,19 +95,29 @@ const writerTypes = [
     label: "Commercial proposal",
     labelEs: "Propuesta comercial",
     description:
-      "Generate a structured proposal with value, pricing, and next steps.",
+      "Generate a structured proposal with business value and next steps.",
     descriptionEs:
-      "Genera una propuesta estructurada con valor, precio y próximos pasos.",
+      "Genera una propuesta estructurada con valor comercial y próximos pasos.",
     icon: FileText,
+  },
+  {
+    id: "executive-summary",
+    label: "Executive summary",
+    labelEs: "Resumen ejecutivo",
+    description:
+      "Summarize the opportunity, investment case, and decision factors.",
+    descriptionEs:
+      "Resume la oportunidad, la inversión y los factores de decisión.",
+    icon: BriefcaseBusiness,
   },
   {
     id: "re-engagement",
     label: "Re-engagement",
     labelEs: "Reactivación",
     description:
-      "Reconnect with a cold or inactive lead.",
+      "Reconnect with a cold or inactive opportunity.",
     descriptionEs:
-      "Retoma el contacto con un prospecto frío o inactivo.",
+      "Retoma el contacto con una oportunidad fría o inactiva.",
     icon: UserRound,
   },
 ];
@@ -138,11 +149,12 @@ const toneOptions = [
     labelEs: "Consultivo",
   },
 ];
+
 const quickObjectives = [
   {
     id: "meeting",
     en: "Book a meeting",
-    es: "Agendar reunión",
+    es: "Agendar una reunión",
   },
   {
     id: "followup",
@@ -151,23 +163,23 @@ const quickObjectives = [
   },
   {
     id: "close",
-    en: "Close the deal",
-    es: "Cerrar el negocio",
+    en: "Advance the deal",
+    es: "Avanzar el negocio",
   },
   {
     id: "proposal",
     en: "Send a proposal",
-    es: "Enviar propuesta",
+    es: "Enviar una propuesta",
   },
   {
     id: "recover",
-    en: "Recover inactive customer",
-    es: "Recuperar cliente",
+    en: "Recover an inactive opportunity",
+    es: "Recuperar una oportunidad inactiva",
   },
   {
     id: "intro",
     en: "Introduce our company",
-    es: "Presentar la empresa",
+    es: "Presentar nuestra empresa",
   },
   {
     id: "documents",
@@ -178,6 +190,44 @@ const quickObjectives = [
     id: "thanks",
     en: "Thank the customer",
     es: "Agradecer al cliente",
+  },
+];
+
+const variableGroupDefinitions = [
+  {
+    id: "contact",
+    label: "Contact",
+    labelEs: "Contacto",
+    prefixes: ["contact_"],
+  },
+  {
+    id: "company",
+    label: "Company",
+    labelEs: "Empresa",
+    prefixes: ["company_"],
+  },
+  {
+    id: "deal",
+    label: "Deal",
+    labelEs: "Negocio",
+    prefixes: [
+      "deal_",
+      "expected_deal_value",
+      "projected_roi",
+      "roi_period",
+      "implementation_cost",
+      "expected_customer_savings",
+      "savings_period",
+      "payback_period",
+      "contract_duration",
+      "billing_model",
+      "revenue_type",
+      "expected_annual_value",
+      "decision_deadline",
+      "business_problem",
+      "solution_summary",
+      "success_metric",
+    ],
   },
 ];
 
@@ -235,6 +285,86 @@ const normalizeSearchText = (value = "") =>
     .toLowerCase()
     .trim();
 
+const cleanSentence = (value = "") => {
+  const normalized = String(value)
+    .trim()
+    .replace(/\s+/g, " ");
+
+  if (!normalized) {
+    return "";
+  }
+
+  const sentence =
+    normalized.charAt(0).toUpperCase() +
+    normalized.slice(1);
+
+  return /[.!?]$/.test(sentence)
+    ? sentence
+    : `${sentence}.`;
+};
+
+const sanitizeAdditionalDetails = (
+  rawDetails,
+  resolvedDetails
+) => {
+  const raw = normalizeText(rawDetails);
+  const resolved = normalizeText(
+    resolvedDetails
+  );
+
+  if (!raw || !resolved) {
+    return "";
+  }
+
+  const tokenMatches =
+    raw.match(/{{[^}]+}}/g) || [];
+
+  const proseWithoutTokens = raw
+    .replace(/{{[^}]+}}/g, " ")
+    .replace(/[|,;]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  /*
+   * If the field is essentially a collection of variables,
+   * do not dump their resolved values into the email.
+   */
+  if (
+    tokenMatches.length >= 2 &&
+    proseWithoutTokens.length < 18
+  ) {
+    return "";
+  }
+
+  const phoneCount =
+    (
+      resolved.match(
+        /\+?\d[\d\s()-]{7,}\d/g
+      ) || []
+    ).length;
+
+  const currencyCount =
+    (
+      resolved.match(
+        /(?:USD|COP|EUR|GBP|AUD|CAD|\$|€|£)\s?[\d.,]+/gi
+      ) || []
+    ).length;
+
+  /*
+   * Suppress data dumps such as:
+   * "+57 310... Bright Labs $15,000 25% 12 months".
+   */
+  if (
+    resolved.split(/\s+/).length <= 18 &&
+    phoneCount >= 1 &&
+    currencyCount >= 1
+  ) {
+    return "";
+  }
+
+  return cleanSentence(resolved);
+};
+
 const getContactName = (contact) =>
   contact?.name ||
   contact?.fullName ||
@@ -271,7 +401,7 @@ const formatCurrency = (
       }
     ).format(Number(value || 0));
   } catch {
-    return String(value || 0);
+    return `${currency} ${String(value || 0)}`;
   }
 };
 
@@ -308,53 +438,233 @@ const getToneInstruction = (
   );
 };
 
+const getToneOpening = (tone, language) => {
+  const openings = {
+    en: {
+      professional: "I hope you're doing well.",
+      friendly: "I hope you're having a great week.",
+      persuasive:
+        "I wanted to share a practical next step that could create measurable value for your team.",
+      concise:
+        "I wanted to follow up briefly.",
+      consultative:
+        "I've been reviewing the opportunity and wanted to share a few practical observations.",
+    },
+    es: {
+      professional:
+        "Espero que estés muy bien.",
+      friendly:
+        "Espero que estés teniendo una excelente semana.",
+      persuasive:
+        "Quería compartirte un siguiente paso práctico que podría generar valor medible para tu equipo.",
+      concise:
+        "Quería hacer un seguimiento breve.",
+      consultative:
+        "He estado revisando la oportunidad y quería compartirte algunas observaciones prácticas.",
+    },
+  };
+
+  return (
+    openings[language][tone] ||
+    openings[language].professional
+  );
+};
+
+const getToneClosing = (
+  tone,
+  language,
+  type
+) => {
+  if (language === "es") {
+    const closings = {
+      professional:
+        "Quedo atento a tus comentarios y con gusto coordinamos el siguiente paso.",
+      friendly:
+        "Cuéntame qué te parece y lo revisamos juntos.",
+      persuasive:
+        "Si estás de acuerdo, podemos definir el siguiente paso esta semana y mantener el proyecto en movimiento.",
+      concise:
+        "¿Te parece si confirmamos el siguiente paso?",
+      consultative:
+        "Me gustaría conocer tu perspectiva y ajustar la propuesta a sus prioridades reales.",
+    };
+
+    if (type === "whatsapp") {
+      return tone === "concise"
+        ? "¿Lo revisamos?"
+        : "Quedo atento y con gusto lo revisamos juntos.";
+    }
+
+    return closings[tone] ||
+      closings.professional;
+  }
+
+  const closings = {
+    professional:
+      "Please let me know what you think. I would be happy to coordinate the next step.",
+    friendly:
+      "Let me know what you think, and we can review it together.",
+    persuasive:
+      "If this direction makes sense, we can confirm the next step this week and keep the project moving.",
+    concise:
+      "Would you like to confirm the next step?",
+    consultative:
+      "I would value your perspective and can adjust the proposal around your actual priorities.",
+  };
+
+  if (type === "whatsapp") {
+    return tone === "concise"
+      ? "Should we review it?"
+      : "Happy to review it with you.";
+  }
+
+  return closings[tone] ||
+    closings.professional;
+};
+
 const buildContext = ({
   contact,
   company,
   deal,
   currency,
   language,
-}) => ({
-  contactName: contact
-    ? getContactName(contact)
-    : language === "es"
-      ? "cliente"
-      : "customer",
+}) => {
+  const dealCurrency =
+    deal?.currency ||
+    currency ||
+    "USD";
 
-  contactFirstName: contact
-    ? getFirstName(getContactName(contact))
-    : language === "es"
-      ? "Carlos"
-      : "Alex",
+  const formatDealCurrency = (value) =>
+    formatCurrency(
+      value,
+      dealCurrency,
+      language
+    );
 
-  companyName: company
-    ? getCompanyName(company)
-    : deal?.company ||
-      deal?.companyName ||
+  const hasNumericValue = (value) =>
+    value !== undefined &&
+    value !== null &&
+    String(value).trim() !== "";
+
+  return {
+    contactName: contact
+      ? getContactName(contact)
+      : language === "es"
+        ? "cliente"
+        : "customer",
+
+    contactFirstName: contact
+      ? getFirstName(getContactName(contact))
+      : language === "es"
+        ? "Carlos"
+        : "Alex",
+
+    companyName: company
+      ? getCompanyName(company)
+      : deal?.company ||
+        deal?.companyName ||
+        (language === "es"
+          ? "la empresa"
+          : "the company"),
+
+    dealName: deal
+      ? getDealName(deal)
+      : language === "es"
+        ? "la oportunidad"
+        : "the opportunity",
+
+    dealCurrency,
+
+    dealValue: hasNumericValue(deal?.value)
+      ? formatDealCurrency(deal.value)
+      : "",
+
+    probability: hasNumericValue(
+      deal?.probability
+    )
+      ? Number(deal.probability)
+      : null,
+
+    expectedDealValue:
+      hasNumericValue(deal?.value) &&
+      hasNumericValue(deal?.probability)
+        ? formatDealCurrency(
+            Number(deal.value || 0) *
+              (Number(
+                deal.probability || 0
+              ) /
+                100)
+          )
+        : "",
+
+    projectedRoi: hasNumericValue(
+      deal?.projectedRoi
+    )
+      ? Number(deal.projectedRoi)
+      : null,
+
+    roiPeriod: deal?.roiPeriod || "",
+
+    implementationCost: hasNumericValue(
+      deal?.implementationCost
+    )
+      ? formatDealCurrency(
+          deal.implementationCost
+        )
+      : "",
+
+    customerSavings: hasNumericValue(
+      deal?.expectedCustomerSavings
+    )
+      ? formatDealCurrency(
+          deal.expectedCustomerSavings
+        )
+      : "",
+
+    savingsPeriod:
+      deal?.savingsPeriod || "",
+
+    paybackPeriod:
+      deal?.paybackPeriod || "",
+
+    contractDuration:
+      deal?.contractDuration || "",
+
+    billingModel:
+      deal?.billingModel || "",
+
+    revenueType:
+      deal?.revenueType || "",
+
+    annualValue: hasNumericValue(
+      deal?.expectedAnnualValue
+    )
+      ? formatDealCurrency(
+          deal.expectedAnnualValue
+        )
+      : "",
+
+    decisionDeadline:
+      deal?.decisionDeadline || "",
+
+    closeDate: deal?.closeDate || "",
+
+    businessProblem:
+      deal?.businessProblem || "",
+
+    solutionSummary:
+      deal?.solutionSummary || "",
+
+    successMetric:
+      deal?.successMetric || "",
+
+    dealStage:
+      deal?.stage ||
       (language === "es"
-        ? "la empresa"
-        : "the company"),
-
-  dealName: deal
-    ? getDealName(deal)
-    : language === "es"
-      ? "la oportunidad"
-      : "the opportunity",
-
-  dealValue: deal
-    ? formatCurrency(
-        deal.value,
-        currency,
-        language
-      )
-    : null,
-
-  dealStage:
-    deal?.stage ||
-    (language === "es"
-      ? "en proceso"
-      : "in progress"),
-});
+        ? "en proceso"
+        : "in progress"),
+  };
+};
 
 const getTemplateDisplayName = (
   template,
@@ -390,7 +700,371 @@ const getTemplateContent = (
     ? template.contentEs ||
       template.content
     : template.content;
-    const generateContent = ({
+
+const buildBusinessValueParagraph = (
+  context,
+  language,
+  tone
+) => {
+  const components = [];
+
+  if (language === "es") {
+    if (context.dealValue) {
+      components.push(
+        tone === "concise"
+          ? `La inversión estimada es de ${context.dealValue}.`
+          : `La inversión estimada para esta iniciativa es de ${context.dealValue}.`
+      );
+    }
+
+    if (
+      context.projectedRoi !== null &&
+      context.roiPeriod
+    ) {
+      components.push(
+        `Con base en la información disponible, se proyecta un retorno aproximado del ${context.projectedRoi}% durante ${context.roiPeriod}.`
+      );
+    }
+
+    if (context.customerSavings) {
+      components.push(
+        `Además, los ahorros estimados podrían alcanzar ${context.customerSavings}${
+          context.savingsPeriod
+            ? ` durante ${context.savingsPeriod}`
+            : ""
+        }.`
+      );
+    }
+
+    if (context.paybackPeriod) {
+      components.push(
+        `El periodo estimado de recuperación de la inversión es de ${context.paybackPeriod}.`
+      );
+    }
+  } else {
+    if (context.dealValue) {
+      components.push(
+        tone === "concise"
+          ? `The estimated investment is ${context.dealValue}.`
+          : `The estimated investment for this initiative is ${context.dealValue}.`
+      );
+    }
+
+    if (
+      context.projectedRoi !== null &&
+      context.roiPeriod
+    ) {
+      components.push(
+        `Based on the available information, the projected return is approximately ${context.projectedRoi}% over ${context.roiPeriod}.`
+      );
+    }
+
+    if (context.customerSavings) {
+      components.push(
+        `In addition, estimated savings could reach ${context.customerSavings}${
+          context.savingsPeriod
+            ? ` over ${context.savingsPeriod}`
+            : ""
+        }.`
+      );
+    }
+
+    if (context.paybackPeriod) {
+      components.push(
+        `The estimated payback period is ${context.paybackPeriod}.`
+      );
+    }
+  }
+
+  return components.join(" ");
+};
+
+const buildObjectiveSentence = ({
+  objective,
+  language,
+  type,
+}) => {
+  const cleaned = normalizeText(objective);
+
+  if (!cleaned) {
+    const defaults = {
+      en: {
+        "sales-email":
+          "I would like to understand your current priorities and explore whether this solution is a good fit.",
+        "follow-up":
+          "I wanted to confirm whether you had a chance to review the information we shared.",
+        whatsapp:
+          "Have you had a chance to review the proposal?",
+        meeting:
+          "The goal is to review current needs, clarify open questions, and agree on the next steps.",
+        proposal:
+          "The objective is to implement a practical solution that improves visibility, execution, and commercial performance.",
+        "executive-summary":
+          "The opportunity should be evaluated based on business impact, implementation effort, and expected return.",
+        "re-engagement":
+          "I wanted to see whether this initiative is still relevant and whether priorities have changed.",
+      },
+      es: {
+        "sales-email":
+          "Me gustaría conocer mejor tus prioridades actuales y evaluar si esta solución encaja con lo que necesitan.",
+        "follow-up":
+          "Quería confirmar si tuviste la oportunidad de revisar la información que compartimos.",
+        whatsapp:
+          "¿Tuviste la oportunidad de revisar la propuesta?",
+        meeting:
+          "El objetivo es revisar las necesidades actuales, resolver preguntas pendientes y acordar los próximos pasos.",
+        proposal:
+          "El objetivo es implementar una solución práctica que mejore la visibilidad, la ejecución y el rendimiento comercial.",
+        "executive-summary":
+          "La oportunidad debe evaluarse considerando el impacto comercial, el esfuerzo de implementación y el retorno esperado.",
+        "re-engagement":
+          "Quería saber si esta iniciativa sigue siendo relevante y si las prioridades han cambiado.",
+      },
+    };
+
+    return defaults[language][type] || "";
+  }
+
+  const normalized =
+    normalizeSearchText(cleaned);
+
+  if (language === "es") {
+    if (
+      normalized.includes("enviar una propuesta")
+    ) {
+      return "Me gustaría compartirte la propuesta actualizada, explicar el valor esperado y resolver cualquier pregunta antes de avanzar.";
+    }
+
+    if (
+      normalized.includes("agendar una reunion")
+    ) {
+      return "Me gustaría coordinar una conversación breve para revisar los puntos clave y definir los próximos pasos.";
+    }
+
+    if (
+      normalized.includes("hacer seguimiento")
+    ) {
+      return "Quería retomar la conversación y confirmar si existe algún punto pendiente antes de avanzar.";
+    }
+
+    if (
+      normalized.includes("avanzar el negocio")
+    ) {
+      return "Me gustaría alinear los próximos pasos y confirmar qué necesitamos para mantener la oportunidad en movimiento.";
+    }
+
+    if (
+      normalized.includes(
+        "recuperar una oportunidad inactiva"
+      )
+    ) {
+      return "Quería saber si esta iniciativa sigue siendo una prioridad y si tendría sentido retomarla con un enfoque actualizado.";
+    }
+
+    if (
+      normalized.includes(
+        "presentar nuestra empresa"
+      )
+    ) {
+      return "Me gustaría presentarte brevemente cómo trabajamos y explorar si podemos aportar valor a sus prioridades actuales.";
+    }
+
+    if (
+      normalized.includes(
+        "solicitar documentos"
+      )
+    ) {
+      return "Para continuar con la evaluación, agradecería que nos compartieras la documentación pendiente.";
+    }
+
+    if (
+      normalized.includes(
+        "agradecer al cliente"
+      )
+    ) {
+      return "Quería agradecerte por el tiempo, la confianza y la información que has compartido con nosotros.";
+    }
+
+    return cleanSentence(cleaned);
+  }
+
+  if (
+    normalized.includes("send a proposal")
+  ) {
+    return "I would like to share the updated proposal, explain the expected value, and address any questions before moving forward.";
+  }
+
+  if (
+    normalized.includes("book a meeting")
+  ) {
+    return "I would like to schedule a short conversation to review the key points and agree on the next steps.";
+  }
+
+  if (
+    normalized.includes("follow up")
+  ) {
+    return "I wanted to reconnect and confirm whether there are any open questions before we move forward.";
+  }
+
+  if (
+    normalized.includes("advance the deal")
+  ) {
+    return "I would like to align on the next steps and confirm what is needed to keep the opportunity moving.";
+  }
+
+  if (
+    normalized.includes(
+      "recover an inactive opportunity"
+    )
+  ) {
+    return "I wanted to see whether this initiative is still a priority and whether it would make sense to revisit it with an updated approach.";
+  }
+
+  if (
+    normalized.includes(
+      "introduce our company"
+    )
+  ) {
+    return "I would like to briefly introduce how we work and explore whether we can support your current priorities.";
+  }
+
+  if (
+    normalized.includes(
+      "request documents"
+    )
+  ) {
+    return "To continue the evaluation, I would appreciate it if you could share the remaining documentation.";
+  }
+
+  if (
+    normalized.includes(
+      "thank the customer"
+    )
+  ) {
+    return "I wanted to thank you for your time, trust, and the information you have shared with us.";
+  }
+
+  return cleanSentence(cleaned);
+};
+
+const calculateContentScore = ({
+  content,
+  context,
+  language,
+}) => {
+  const text = normalizeText(content);
+  const lowerText =
+    normalizeSearchText(text);
+
+  if (!text) {
+    return {
+      score: 0,
+      suggestions: [],
+    };
+  }
+
+  let score = 35;
+  const suggestions = [];
+
+  if (
+    context.contactFirstName &&
+    lowerText.includes(
+      normalizeSearchText(
+        context.contactFirstName
+      )
+    )
+  ) {
+    score += 12;
+  } else {
+    suggestions.push(
+      language === "es"
+        ? "Personaliza el saludo con el nombre del contacto."
+        : "Personalize the greeting with the contact's name."
+    );
+  }
+
+  if (
+    context.companyName &&
+    lowerText.includes(
+      normalizeSearchText(
+        context.companyName
+      )
+    )
+  ) {
+    score += 10;
+  } else {
+    suggestions.push(
+      language === "es"
+        ? "Menciona la empresa para mejorar la personalización."
+        : "Mention the company to improve personalization."
+    );
+  }
+
+  const hasCallToAction =
+    /meeting|call|next step|schedule|reunión|llamada|siguiente paso|coordinar/i.test(
+      text
+    );
+
+  if (hasCallToAction) {
+    score += 15;
+  } else {
+    suggestions.push(
+      language === "es"
+        ? "Agrega una llamada a la acción clara."
+        : "Add a clear call to action."
+    );
+  }
+
+  if (
+    context.projectedRoi !== null &&
+    text.includes(
+      String(context.projectedRoi)
+    )
+  ) {
+    score += 10;
+  } else if (
+    context.projectedRoi !== null
+  ) {
+    suggestions.push(
+      language === "es"
+        ? "Considera mencionar el ROI proyectado."
+        : "Consider mentioning the projected ROI."
+    );
+  }
+
+  if (
+    context.dealValue &&
+    text.includes(context.dealValue)
+  ) {
+    score += 8;
+  }
+
+  const wordCount =
+    text.split(/\s+/).filter(Boolean).length;
+
+  if (wordCount >= 55 && wordCount <= 220) {
+    score += 10;
+  } else if (wordCount > 220) {
+    suggestions.push(
+      language === "es"
+        ? "El contenido podría ser más breve."
+        : "The content could be more concise."
+    );
+  } else {
+    suggestions.push(
+      language === "es"
+        ? "Agrega un poco más de contexto comercial."
+        : "Add a little more commercial context."
+    );
+  }
+
+  return {
+    score: Math.min(score, 100),
+    suggestions: suggestions.slice(0, 4),
+  };
+};
+
+const generateContent = ({
   type,
   language,
   tone,
@@ -398,105 +1072,124 @@ const getTemplateContent = (
   details,
   context,
 }) => {
-  const toneInstruction =
-    getToneInstruction(tone, language);
+  const opening = getToneOpening(
+    tone,
+    language
+  );
 
-  const objectiveText =
-    normalizeText(objective);
+  const objectiveSentence =
+    buildObjectiveSentence({
+      objective,
+      language,
+      type,
+    });
 
   const additionalDetails =
-    normalizeText(details);
+    cleanSentence(details);
+
+  const businessValue =
+    buildBusinessValueParagraph(
+      context,
+      language,
+      tone
+    );
+
+  const closing = getToneClosing(
+    tone,
+    language,
+    type
+  );
 
   if (language === "es") {
     switch (type) {
       case "sales-email":
         return {
-          subject: `Una idea para ${context.companyName}`,
+          subject: `Una propuesta para ${context.companyName}`,
           content: `Hola ${context.contactFirstName},
 
-Espero que estés muy bien.
+${opening}
 
-Quería contactarte porque creo que podemos ayudar a ${context.companyName} a mejorar sus procesos comerciales y reducir el trabajo manual del equipo.
-
-Nuestra solución centraliza contactos, oportunidades, tareas, campañas y seguimientos en una sola plataforma, con herramientas de inteligencia que ayudan a identificar prioridades y próximos pasos.
-
-${objectiveText || "Me gustaría conocer mejor sus necesidades actuales y mostrarte cómo podríamos aportar valor."}
+Te contacto porque creo que podemos ayudar a ${context.companyName} a resolver ${context.businessProblem || "algunos de sus retos comerciales y operativos actuales"}.
 
 ${
-  additionalDetails
-    ? `Información adicional:\n${additionalDetails}\n`
-    : ""
+  context.solutionSummary
+    ? `La solución propuesta busca ${cleanSentence(
+        context.solutionSummary
+      )
+        .replace(/\.$/, "")
+        .replace(/^./, (character) =>
+          character.toLowerCase()
+        )}.`
+    : "Nuestra propuesta centraliza la gestión de contactos, oportunidades, tareas y seguimientos, reduciendo trabajo manual y mejorando la visibilidad del equipo."
 }
-¿Tendrías disponibilidad para una conversación breve esta semana?
 
-Quedo atento.
+${businessValue}
+
+${objectiveSentence}
+
+${additionalDetails}
+
+${closing}
 
 Saludos,`,
         };
 
       case "follow-up":
         return {
-          subject: `Seguimiento: ${context.dealName}`,
+          subject: `Seguimiento sobre ${context.dealName}`,
           content: `Hola ${context.contactFirstName},
 
-Quería hacer seguimiento a nuestra conversación sobre ${context.dealName}.
+${opening}
 
-${
-  context.dealValue
-    ? `La oportunidad actualmente tiene un valor estimado de ${context.dealValue} y se encuentra en la etapa ${context.dealStage}.`
-    : ""
-}
+Quería retomar nuestra conversación sobre la iniciativa de ${context.dealName} para ${context.companyName}.
 
-${objectiveText || "Quería confirmar si tuviste la oportunidad de revisar la información que compartimos."}
+${objectiveSentence}
 
-${
-  additionalDetails
-    ? `Información adicional:\n${additionalDetails}\n`
-    : ""
-}
-Quedo atento a cualquier pregunta. También podemos coordinar una llamada breve para revisar los próximos pasos.
+${businessValue}
+
+${additionalDetails}
+
+${closing}
 
 Saludos,`,
         };
 
       case "whatsapp":
-  return {
-    subject: "Mensaje de WhatsApp",
-    content: `Hola ${context.contactFirstName}, ¿cómo estás?
+        return {
+          subject: "Mensaje de WhatsApp",
+          content: `Hola ${context.contactFirstName}, ¿cómo estás?
 
-Quería hacer seguimiento a ${context.dealName}. ${
-      objectiveText ||
-      "¿Tuviste la oportunidad de revisar la información?"
-    }
+Quería hacer seguimiento a ${context.dealName}. ${objectiveSentence}
 
-${
-  additionalDetails
-    ? `${additionalDetails}`
-    : ""
-}
+${businessValue}
 
-Quedo atento a cualquier pregunta y con gusto coordinamos los próximos pasos.`,
-  };
+${additionalDetails}
+
+${closing}`,
+        };
 
       case "meeting":
         return {
           subject: `Reunión sobre ${context.dealName}`,
           content: `Hola ${context.contactFirstName},
 
-Me gustaría invitarte a una reunión breve para revisar ${context.dealName} y resolver cualquier pregunta pendiente.
+${opening}
 
-Objetivo de la reunión:
+Me gustaría invitarte a una reunión breve para revisar ${context.dealName} y alinear los próximos pasos.
 
-${objectiveText || "Revisar necesidades, propuesta y próximos pasos."}
+La agenda propuesta sería:
+• Revisar prioridades y necesidades actuales
+• Aclarar preguntas sobre la propuesta
+• Confirmar alcance, tiempos y responsables
+• Acordar el siguiente paso comercial
 
-${
-  additionalDetails
-    ? `Información adicional:\n${additionalDetails}\n`
-    : ""
-}
+${businessValue}
+
+${additionalDetails}
+
 Duración sugerida: 30 minutos.
 
-Por favor, indícame qué día y hora te resulta más conveniente.
+¿Qué día y hora te resulta más conveniente?
 
 Saludos,`,
         };
@@ -512,70 +1205,153 @@ ${context.companyName}
 Contacto principal
 ${context.contactName}
 
+Oportunidad
+${context.dealName}
+
 1. Resumen ejecutivo
 
-Esta propuesta presenta una solución para mejorar la gestión comercial, centralizar la información de clientes y fortalecer el seguimiento de oportunidades.
-
-2. Objetivo
-
 ${
-  objectiveText ||
-  "Implementar una herramienta sencilla y eficiente que permita al equipo comercial trabajar con mayor organización, visibilidad y velocidad."
+  context.solutionSummary
+    ? cleanSentence(
+        context.solutionSummary
+      )
+    : "Esta propuesta presenta una solución diseñada para mejorar la gestión comercial, centralizar la información y fortalecer el seguimiento de oportunidades."
 }
 
-3. Solución propuesta
+2. Situación actual
 
-• Gestión centralizada de contactos y empresas
-• Pipeline visual de oportunidades
-• Tareas, recordatorios y seguimiento comercial
-• Campañas y automatizaciones
+${
+  context.businessProblem
+    ? cleanSentence(
+        context.businessProblem
+      )
+    : "Actualmente existen oportunidades de mejora en visibilidad comercial, seguimiento, coordinación del equipo y automatización de tareas."
+}
+
+3. Objetivo
+
+${objectiveSentence}
+
+4. Alcance propuesto
+
+• Gestión centralizada de contactos, empresas y oportunidades
+• Seguimiento de tareas, actividades y comunicaciones
+• Automatizaciones y recordatorios
 • Inteligencia comercial y recomendaciones
-• Generación asistida de mensajes y propuestas
+• Generación asistida de mensajes, resúmenes y propuestas
 
-4. Valor de la propuesta
+5. Caso de negocio
 
 ${
-  context.dealValue ||
-  "El valor final se definirá según el alcance, número de usuarios e integraciones requeridas."
+  businessValue ||
+  "El caso financiero se definirá con base en el alcance final, los procesos actuales y los resultados esperados."
 }
 
-5. Cronograma sugerido
+${
+  context.implementationCost
+    ? `Costo estimado de implementación: ${context.implementationCost}.`
+    : ""
+}
 
-Semana 1: configuración y personalización
+${
+  context.annualValue
+    ? `Valor anual estimado: ${context.annualValue}.`
+    : ""
+}
 
-Semana 2: migración de datos y capacitación
+${
+  context.contractDuration
+    ? `Duración estimada del contrato: ${context.contractDuration}.`
+    : ""
+}
 
-Semana 3: pruebas y ajustes
+6. Indicador de éxito
 
-Semana 4: lanzamiento y seguimiento
+${
+  context.successMetric
+    ? cleanSentence(
+        context.successMetric
+      )
+    : "Definir un indicador medible que permita evaluar el impacto comercial y operativo de la solución."
+}
 
-6. Próximos pasos
+7. Próximos pasos
 
-• Confirmar alcance
-• Definir responsables
-• Aprobar propuesta
-• Programar implementación
+• Validar el alcance
+• Confirmar responsables
+• Resolver preguntas pendientes
+• Aprobar la propuesta
+• Programar la implementación
+
+${additionalDetails}`,
+        };
+
+      case "executive-summary":
+        return {
+          subject: `Resumen ejecutivo — ${context.dealName}`,
+          content: `RESUMEN EJECUTIVO
+
+${context.companyName} está evaluando ${context.dealName}.
+
+La oportunidad se encuentra actualmente en la etapa ${context.dealStage}${
+  context.probability !== null
+    ? `, con una probabilidad de cierre del ${context.probability}%`
+    : ""
+}.
+
+${
+  context.businessProblem
+    ? `Problema principal: ${cleanSentence(
+        context.businessProblem
+      )}`
+    : ""
+}
+
+${
+  context.solutionSummary
+    ? `Solución propuesta: ${cleanSentence(
+        context.solutionSummary
+      )}`
+    : ""
+}
+
+${businessValue}
+
+${
+  context.expectedDealValue
+    ? `Valor esperado del negocio: ${context.expectedDealValue}.`
+    : ""
+}
+
+${
+  context.successMetric
+    ? `Indicador clave de éxito: ${cleanSentence(
+        context.successMetric
+      )}`
+    : ""
+}
+
+${objectiveSentence}
 
 ${additionalDetails}`,
         };
 
       case "re-engagement":
         return {
-          subject: "¿Retomamos la conversación?",
+          subject: `¿Retomamos ${context.dealName}?`,
           content: `Hola ${context.contactFirstName},
 
-Hace un tiempo conversamos sobre ${context.dealName} y quería retomar el contacto.
+${opening}
 
-Entiendo que las prioridades pueden cambiar, por eso quería preguntarte si este proyecto sigue siendo relevante para ${context.companyName}.
+Hace un tiempo conversamos sobre ${context.dealName} y quería saber si esta iniciativa sigue siendo relevante para ${context.companyName}.
 
-${objectiveText || "Si todavía existe interés, podemos revisar nuevamente las necesidades y adaptar la propuesta."}
+${objectiveSentence}
 
-${
-  additionalDetails
-    ? `Información adicional:\n${additionalDetails}\n`
-    : ""
-}
-Quedo atento.
+${businessValue}
+
+${additionalDetails}
+
+${closing}
 
 Saludos,`,
         };
@@ -591,92 +1367,98 @@ Saludos,`,
 
   switch (type) {
     case "sales-email":
-  return {
-    subject: `An idea for ${context.companyName}`,
-    content: `Hi ${context.contactFirstName},
+      return {
+        subject: `A practical idea for ${context.companyName}`,
+        content: `Hi ${context.contactFirstName},
 
-I hope you are doing well.
+${opening}
 
-I am reaching out because I believe we could help ${context.companyName} improve its sales processes and reduce manual work.
-
-Our solution brings contacts, opportunities, tasks, campaigns, and follow-ups into one platform, supported by intelligent recommendations that help teams identify priorities and next actions.
-
-${objectiveText || "I would like to understand your current needs and show you how we could add value."}
+I'm reaching out because I believe we could help ${context.companyName} address ${context.businessProblem || "some of its current commercial and operational challenges"}.
 
 ${
-  additionalDetails
-    ? `Additional details:\n${additionalDetails}\n`
-    : ""
+  context.solutionSummary
+    ? `The proposed solution is designed to ${cleanSentence(
+        context.solutionSummary
+      )
+        .replace(/\.$/, "")
+        .replace(/^./, (character) =>
+          character.toLowerCase()
+        )}.`
+    : "Our solution centralizes contacts, opportunities, tasks, and follow-ups, reducing manual work and improving visibility across the team."
 }
-Would you be available for a short conversation this week?
+
+${businessValue}
+
+${objectiveSentence}
+
+${additionalDetails}
+
+${closing}
 
 Best regards,`,
-  };
+      };
 
     case "follow-up":
-  return {
-    subject: `Following up on ${context.dealName}`,
-    content: `Hi ${context.contactFirstName},
+      return {
+        subject: `Following up on ${context.dealName}`,
+        content: `Hi ${context.contactFirstName},
 
-I hope you're doing well.
+${opening}
 
-I'm following up regarding ${context.dealName}.
+I wanted to reconnect regarding the ${context.dealName} initiative for ${context.companyName}.
 
-${objectiveText || "I wanted to check whether you had a chance to review the information we shared."}
+${objectiveSentence}
 
-${
-  additionalDetails
-    ? `Additional details:\n${additionalDetails}\n`
-    : ""
-}
+${businessValue}
 
-Please let me know if you have any questions or would like to schedule a quick call.
+${additionalDetails}
+
+${closing}
 
 Best regards,`,
-  };
+      };
 
-  case "whatsapp":
-  return {
-    subject: "WhatsApp message",
-    content: `Hi ${context.contactFirstName}, how are you?
+    case "whatsapp":
+      return {
+        subject: "WhatsApp message",
+        content: `Hi ${context.contactFirstName}, how are you?
 
-I wanted to follow up regarding ${context.dealName}. ${
-      objectiveText ||
-      "Have you had a chance to review the information?"
-    }
+I wanted to follow up regarding ${context.dealName}. ${objectiveSentence}
 
-${
-  additionalDetails
-    ? `${additionalDetails}`
-    : ""
-}
+${businessValue}
 
-I'm looking forward to your feedback and would be happy to discuss the next steps.`,
-  };
+${additionalDetails}
+
+${closing}`,
+      };
 
     case "meeting":
-  return {
-    subject: `Meeting about ${context.dealName}`,
-    content: `Hi ${context.contactFirstName},
+      return {
+        subject: `Meeting about ${context.dealName}`,
+        content: `Hi ${context.contactFirstName},
 
-I would like to invite you to a brief meeting to discuss ${context.dealName}.
+${opening}
 
-Meeting objective:
-${objectiveText || "Review current needs and discuss possible next steps."}
+I would like to invite you to a brief meeting to review ${context.dealName} and align on the next steps.
 
-${
-  additionalDetails
-    ? `Additional details:\n${additionalDetails}\n`
-    : ""
-}
+Suggested agenda:
+• Review current priorities and requirements
+• Clarify questions about the proposal
+• Confirm scope, timing, and stakeholders
+• Agree on the next commercial step
+
+${businessValue}
+
+${additionalDetails}
 
 Suggested duration: 30 minutes.
 
-Please let me know what time works best for you.
+What day and time would work best for you?
 
 Best regards,`,
-  };
-      case "proposal":
+      };
+
+    case "proposal":
       return {
         subject: `Commercial proposal — ${context.companyName}`,
         content: `COMMERCIAL PROPOSAL
@@ -687,74 +1469,157 @@ ${context.companyName}
 Primary contact
 ${context.contactName}
 
+Opportunity
+${context.dealName}
+
 1. Executive summary
 
-This proposal presents a solution designed to improve commercial management, centralize customer information, and strengthen opportunity follow-up.
-
-2. Objective
-
 ${
-  objectiveText ||
-  "Implement a simple and efficient platform that helps the sales team work with greater organization, visibility, and speed."
+  context.solutionSummary
+    ? cleanSentence(
+        context.solutionSummary
+      )
+    : "This proposal presents a solution designed to improve commercial management, centralize information, and strengthen opportunity follow-up."
 }
 
-3. Proposed solution
+2. Current situation
 
-• Centralized contact and company management
-• Visual opportunity pipeline
-• Tasks, reminders, and sales follow-up
-• Campaigns and automations
+${
+  context.businessProblem
+    ? cleanSentence(
+        context.businessProblem
+      )
+    : "There are opportunities to improve commercial visibility, follow-up consistency, team coordination, and task automation."
+}
+
+3. Objective
+
+${objectiveSentence}
+
+4. Proposed scope
+
+• Centralized contact, company, and opportunity management
+• Tasks, activities, and communication tracking
+• Automations and reminders
 • Commercial intelligence and recommendations
-• Assisted message and proposal generation
+• Assisted generation of messages, summaries, and proposals
 
-4. Proposal value
+5. Business case
 
 ${
-  context.dealValue ||
-  "Final pricing will depend on scope, users, and required integrations."
+  businessValue ||
+  "The financial case will be finalized based on scope, current processes, and expected outcomes."
 }
 
-5. Suggested timeline
+${
+  context.implementationCost
+    ? `Estimated implementation cost: ${context.implementationCost}.`
+    : ""
+}
 
-Week 1: configuration and customization
+${
+  context.annualValue
+    ? `Estimated annual value: ${context.annualValue}.`
+    : ""
+}
 
-Week 2: data migration and training
+${
+  context.contractDuration
+    ? `Estimated contract duration: ${context.contractDuration}.`
+    : ""
+}
 
-Week 3: testing and adjustments
+6. Success metric
 
-Week 4: launch and follow-up
+${
+  context.successMetric
+    ? cleanSentence(
+        context.successMetric
+      )
+    : "Define a measurable success indicator to evaluate the commercial and operational impact of the solution."
+}
 
-6. Next steps
+7. Next steps
 
-• Confirm scope
-• Define stakeholders
-• Approve proposal
+• Validate scope
+• Confirm stakeholders
+• Resolve open questions
+• Approve the proposal
 • Schedule implementation
 
 ${additionalDetails}`,
       };
 
-    case "re-engagement":
-  return {
-    subject: `Reconnecting with ${context.companyName}`,
-    content: `Hi ${context.contactFirstName},
+    case "executive-summary":
+      return {
+        subject: `Executive summary — ${context.dealName}`,
+        content: `EXECUTIVE SUMMARY
 
-I hope you're doing well.
+${context.companyName} is evaluating ${context.dealName}.
 
-It's been a while since we last spoke, and I wanted to reconnect.
-
-${objectiveText || "If you're still interested, I'd be happy to revisit your needs and discuss how we can help."}
+The opportunity is currently in the ${context.dealStage} stage${
+  context.probability !== null
+    ? ` with a ${context.probability}% probability of closing`
+    : ""
+}.
 
 ${
-  additionalDetails
-    ? `Additional details:\n${additionalDetails}\n`
+  context.businessProblem
+    ? `Primary business problem: ${cleanSentence(
+        context.businessProblem
+      )}`
     : ""
 }
 
-Looking forward to hearing from you.
+${
+  context.solutionSummary
+    ? `Proposed solution: ${cleanSentence(
+        context.solutionSummary
+      )}`
+    : ""
+}
+
+${businessValue}
+
+${
+  context.expectedDealValue
+    ? `Expected deal value: ${context.expectedDealValue}.`
+    : ""
+}
+
+${
+  context.successMetric
+    ? `Key success metric: ${cleanSentence(
+        context.successMetric
+      )}`
+    : ""
+}
+
+${objectiveSentence}
+
+${additionalDetails}`,
+      };
+
+    case "re-engagement":
+      return {
+        subject: `Reconnecting about ${context.dealName}`,
+        content: `Hi ${context.contactFirstName},
+
+${opening}
+
+It has been a while since we discussed ${context.dealName}, and I wanted to check whether this initiative is still relevant for ${context.companyName}.
+
+${objectiveSentence}
+
+${businessValue}
+
+${additionalDetails}
+
+${closing}
 
 Best regards,`,
-  };
+      };
+
     default:
       return {
         subject: "Generated content",
@@ -766,6 +1631,9 @@ Best regards,`,
 
 function AIWriter() {
   const toast = useToast();
+
+  const objectiveInputRef = useRef(null);
+  const detailsInputRef = useRef(null);
 
   const contacts = useMemo(
     () =>
@@ -795,7 +1663,12 @@ function AIWriter() {
     settings.workspace?.currency || "USD";
 
   const [language, setLanguage] =
-    useState("en");
+    useState(
+      () =>
+        localStorage.getItem(
+          STORAGE_KEYS.language
+        ) || "en"
+    );
 
   const [writerType, setWriterType] =
     useState("sales-email");
@@ -823,6 +1696,9 @@ function AIWriter() {
 
   const [details, setDetails] =
     useState("");
+
+  const [activeVariableField, setActiveVariableField] =
+    useState("details");
 
   const [
     generatedSubject,
@@ -900,7 +1776,9 @@ function AIWriter() {
         contact: selectedContact,
         company: selectedCompany,
         deal: selectedDeal,
-        currency: workspaceCurrency,
+        currency:
+          selectedDeal?.currency ||
+          workspaceCurrency,
         language,
       }),
     [
@@ -910,6 +1788,47 @@ function AIWriter() {
       workspaceCurrency,
       language,
     ]
+  );
+
+  const filteredVariables = useMemo(
+    () =>
+      availableTemplateVariables.filter(
+        (variable) => {
+          const resolvedValue =
+            currentVariables[variable.key];
+
+          return (
+            resolvedValue !== undefined &&
+            resolvedValue !== null &&
+            String(resolvedValue).trim() !== ""
+          );
+        }
+      ),
+    [currentVariables]
+  );
+
+  const groupedVariables = useMemo(
+    () =>
+      variableGroupDefinitions
+        .map((group) => ({
+          ...group,
+          variables:
+            filteredVariables.filter(
+              (variable) =>
+                group.prefixes.some(
+                  (prefix) =>
+                    variable.key === prefix ||
+                    variable.key.startsWith(
+                      prefix
+                    )
+                )
+            ),
+        }))
+        .filter(
+          (group) =>
+            group.variables.length > 0
+        ),
+    [filteredVariables]
   );
 
   const filteredBuiltInTemplates =
@@ -953,40 +1872,59 @@ function AIWriter() {
             normalizedSearch
           );
         })
-        .sort((firstTemplate, secondTemplate) => {
-          const firstIsFavorite =
-            favoriteTemplateIds.includes(
-              firstTemplate.id
-            );
-
-          const secondIsFavorite =
-            favoriteTemplateIds.includes(
-              secondTemplate.id
-            );
-
-          if (
-            firstIsFavorite !==
-            secondIsFavorite
-          ) {
-            return firstIsFavorite ? -1 : 1;
-          }
-
-          return getTemplateDisplayName(
+        .sort(
+          (
             firstTemplate,
-            language
-          ).localeCompare(
-            getTemplateDisplayName(
-              secondTemplate,
+            secondTemplate
+          ) => {
+            const firstIsFavorite =
+              favoriteTemplateIds.includes(
+                firstTemplate.id
+              );
+
+            const secondIsFavorite =
+              favoriteTemplateIds.includes(
+                secondTemplate.id
+              );
+
+            if (
+              firstIsFavorite !==
+              secondIsFavorite
+            ) {
+              return firstIsFavorite ? -1 : 1;
+            }
+
+            return getTemplateDisplayName(
+              firstTemplate,
               language
-            )
-          );
-        });
+            ).localeCompare(
+              getTemplateDisplayName(
+                secondTemplate,
+                language
+              )
+            );
+          }
+        );
     }, [
       selectedCategory,
       templateSearch,
       favoriteTemplateIds,
       language,
     ]);
+
+  const contentScore = useMemo(
+    () =>
+      calculateContentScore({
+        content: generatedContent,
+        context: currentContext,
+        language,
+      }),
+    [
+      generatedContent,
+      currentContext,
+      language,
+    ]
+  );
 
   const toggleFavoriteTemplate = (
     templateId
@@ -1014,23 +1952,23 @@ function AIWriter() {
   const handleUseBuiltInTemplate = (
     template
   ) => {
-    const templateLanguage = language;
-
     const resolvedTemplate =
       resolveTemplate({
         subject: getTemplateSubject(
           template,
-          templateLanguage
+          language
         ),
         content: getTemplateContent(
           template,
-          templateLanguage
+          language
         ),
         contact: selectedContact,
         company: selectedCompany,
         deal: selectedDeal,
-        currency: workspaceCurrency,
-        language: templateLanguage,
+        currency:
+          selectedDeal?.currency ||
+          workspaceCurrency,
+        language,
         keepUnknownVariables: true,
       });
 
@@ -1053,39 +1991,139 @@ function AIWriter() {
     );
   };
 
+  const insertVariableAtCursor = (
+    variable
+  ) => {
+    const isObjective =
+      activeVariableField === "objective";
+
+    const ref = isObjective
+      ? objectiveInputRef
+      : detailsInputRef;
+
+    const currentValue = isObjective
+      ? objective
+      : details;
+
+    const setValue = isObjective
+      ? setObjective
+      : setDetails;
+
+    const element = ref.current;
+    const token = variable.token;
+
+    const start =
+      element?.selectionStart ??
+      currentValue.length;
+
+    const end =
+      element?.selectionEnd ??
+      currentValue.length;
+
+    const prefix =
+      start > 0 &&
+      !/\s/.test(
+        currentValue.charAt(start - 1)
+      )
+        ? " "
+        : "";
+
+    const suffix =
+      end < currentValue.length &&
+      !/\s/.test(
+        currentValue.charAt(end)
+      )
+        ? " "
+        : "";
+
+    const nextValue =
+      currentValue.slice(0, start) +
+      prefix +
+      token +
+      suffix +
+      currentValue.slice(end);
+
+    setValue(nextValue);
+
+    window.requestAnimationFrame(() => {
+      const nextElement = ref.current;
+
+      if (!nextElement) {
+        return;
+      }
+
+      const cursorPosition =
+        start +
+        prefix.length +
+        token.length +
+        suffix.length;
+
+      nextElement.focus();
+      nextElement.setSelectionRange(
+        cursorPosition,
+        cursorPosition
+      );
+    });
+
+    toast.success(
+      language === "es"
+        ? "Variable insertada"
+        : "Variable inserted",
+      `${variable.token} → ${
+        isObjective
+          ? language === "es"
+            ? "Objetivo principal"
+            : "Primary objective"
+          : language === "es"
+            ? "Detalles adicionales"
+            : "Additional details"
+      }`
+    );
+  };
+
   const handleGenerate = () => {
     setIsGenerating(true);
 
     window.setTimeout(() => {
       const resolvedObjective =
-  resolveTemplateVariables(
-    objective,
-    currentVariables,
-    {
-      keepUnknownVariables: true,
-    }
-  );
+        resolveTemplateVariables(
+          objective,
+          currentVariables,
+          {
+            keepUnknownVariables: true,
+          }
+        );
 
-const resolvedDetails =
-  resolveTemplateVariables(
-    details,
-    currentVariables,
-    {
-      keepUnknownVariables: true,
-    }
-  );
+      const rawResolvedDetails =
+        resolveTemplateVariables(
+          details,
+          currentVariables,
+          {
+            keepUnknownVariables: true,
+          }
+        );
 
-const result = generateContent({
-  type: writerType,
-  language,
-  tone,
-  objective: resolvedObjective,
-  details: resolvedDetails,
-  context: currentContext,
-});
+      const resolvedDetails =
+        sanitizeAdditionalDetails(
+          details,
+          rawResolvedDetails
+        );
+
+      const result = generateContent({
+        type: writerType,
+        language,
+        tone,
+        objective: resolvedObjective,
+        details: resolvedDetails,
+        context: currentContext,
+      });
 
       setGeneratedSubject(result.subject);
-      setGeneratedContent(result.content);
+      setGeneratedContent(
+        result.content
+          .replace(/\n{3,}/g, "\n\n")
+          .trim()
+      );
       setIsGenerating(false);
 
       toast.success(
@@ -1138,6 +2176,7 @@ const result = generateContent({
       );
     }
   };
+
   const handleSaveTemplate = () => {
     if (!generatedContent) {
       return;
@@ -1149,10 +2188,10 @@ const result = generateContent({
       language,
       tone,
       contactId: selectedContactId,
-companyId: selectedCompanyId,
-dealId: selectedDealId,
-objective,
-details,
+      companyId: selectedCompanyId,
+      dealId: selectedDealId,
+      objective,
+      details,
       subject: generatedSubject,
       content: generatedContent,
       createdAt: new Date().toISOString(),
@@ -1180,7 +2219,9 @@ details,
     );
   };
 
-  const handleDeleteTemplate = (templateId) => {
+  const handleDeleteTemplate = (
+    templateId
+  ) => {
     const updatedTemplates =
       savedTemplates.filter(
         (template) =>
@@ -1195,34 +2236,55 @@ details,
     );
   };
 
- const handleLoadTemplate = (template) => {
-  setWriterType(template.type);
-  setLanguage(template.language);
-  setTone(template.tone);
+  const handleLoadTemplate = (
+    template
+  ) => {
+    setWriterType(template.type);
+    setLanguage(template.language);
+    setTone(template.tone);
 
-  setSelectedContactId(template.contactId || "");
-  setSelectedCompanyId(template.companyId || "");
-  setSelectedDealId(template.dealId || "");
+    setSelectedContactId(
+      template.contactId || ""
+    );
+    setSelectedCompanyId(
+      template.companyId || ""
+    );
+    setSelectedDealId(
+      template.dealId || ""
+    );
 
-  setObjective(template.objective || "");
-  setDetails(template.Details || "");
+    setObjective(template.objective || "");
+    setDetails(template.details || "");
 
-  setGeneratedSubject(template.subject);
-  setGeneratedContent(template.content);
-};
+    setGeneratedSubject(
+      template.subject || ""
+    );
+    setGeneratedContent(
+      template.content || ""
+    );
+  };
 
   const clearOutput = () => {
     setGeneratedSubject("");
     setGeneratedContent("");
   };
 
+  const handleLanguageChange = () => {
+    const nextLanguage =
+      language === "en" ? "es" : "en";
+
+    setLanguage(nextLanguage);
+
+    localStorage.setItem(
+      STORAGE_KEYS.language,
+      nextLanguage
+    );
+  };
+
   return (
     <div className="ai-writer-page">
-
       <header className="ai-writer-page__header">
-
         <div>
-
           <span className="ai-writer-page__eyebrow">
             <Sparkles size={15} />
             FlowCRM AI
@@ -1232,43 +2294,30 @@ details,
 
           <p>
             {language === "es"
-              ? "Crea correos, mensajes y propuestas utilizando IA y los datos del CRM."
-              : "Create emails, WhatsApp messages and proposals using AI and CRM data."}
+              ? "Crea correos, mensajes, propuestas y resúmenes comerciales utilizando datos reales del CRM."
+              : "Create emails, messages, proposals, and commercial summaries using real CRM data."}
           </p>
-
         </div>
 
         <button
           type="button"
           className="ai-writer-page__language"
-          onClick={() =>
-            setLanguage((currentLanguage) =>
-              currentLanguage === "en"
-                ? "es"
-                : "en"
-            )
-          }
+          onClick={handleLanguageChange}
         >
           <Languages size={18} />
 
           {language === "en"
             ? "Español"
             : "English"}
-
         </button>
-
       </header>
 
       <section className="ai-writer-templates">
-
         <div className="ai-writer-templates__header">
-
           <div>
-
             <BriefcaseBusiness size={18} />
 
             <span>
-
               <strong>
                 {language === "es"
                   ? "Plantillas profesionales"
@@ -1276,21 +2325,18 @@ details,
               </strong>
 
               <small>
-                {filteredBuiltInTemplates.length}
-                {" "}
+                {
+                  filteredBuiltInTemplates.length
+                }{" "}
                 {language === "es"
                   ? "plantillas"
                   : "templates"}
               </small>
-
             </span>
-
           </div>
-
         </div>
 
         <div className="ai-writer-toolbar">
-
           <input
             type="text"
             value={templateSearch}
@@ -1307,7 +2353,6 @@ details,
           />
 
           <div className="ai-writer-select">
-
             <select
               value={selectedCategory}
               onChange={(event) =>
@@ -1316,11 +2361,12 @@ details,
                 )
               }
             >
-                <option value="all">
-  {language === "es"
-    ? "Todas las categorías"
-    : "All categories"}
-</option>
+              <option value="all">
+                {language === "es"
+                  ? "Todas las categorías"
+                  : "All categories"}
+              </option>
+
               {templateCategories.map(
                 (category) => (
                   <option
@@ -1336,16 +2382,12 @@ details,
             </select>
 
             <ChevronDown size={16} />
-
           </div>
-
         </div>
 
         <div className="ai-writer-template-grid">
-
           {filteredBuiltInTemplates.map(
             (template) => {
-
               const category =
                 getTemplateCategory(
                   template.category
@@ -1357,14 +2399,11 @@ details,
                 );
 
               return (
-
                 <article
                   key={template.id}
                   className="ai-writer-template-card"
                 >
-
                   <div>
-
                     <span>
                       {language === "es"
                         ? category?.labelEs
@@ -1384,11 +2423,9 @@ details,
                         language
                       )}
                     </p>
-
                   </div>
 
                   <div className="ai-writer-template-card__actions">
-
                     <button
                       type="button"
                       onClick={() =>
@@ -1412,19 +2449,14 @@ details,
                     >
                       {favorite ? "★" : "☆"}
                     </button>
-
                   </div>
-
                 </article>
-
               );
-
             }
           )}
-
         </div>
-
       </section>
+
       <section className="ai-writer-type-grid">
         {writerTypes.map((type) => {
           const Icon = type.icon;
@@ -1501,33 +2533,39 @@ details,
               </span>
 
               <div className="ai-writer-select">
-               <select
-  value={selectedContactId}
-  disabled={contacts.length === 0}
-  onChange={(event) =>
-    setSelectedContactId(
-      event.target.value
-    )
-  }
->
-  <option value="">
-    {contacts.length === 0
-      ? language === "es"
-        ? "No hay contactos disponibles"
-        : "No contacts available"
-      : language === "es"
-        ? "Seleccionar contacto"
-        : "Select contact"}
-  </option>
+                <select
+                  value={selectedContactId}
+                  disabled={
+                    contacts.length === 0
+                  }
+                  onChange={(event) =>
+                    setSelectedContactId(
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="">
+                    {contacts.length === 0
+                      ? language === "es"
+                        ? "No hay contactos disponibles"
+                        : "No contacts available"
+                      : language === "es"
+                        ? "Seleccionar contacto"
+                        : "Select contact"}
+                  </option>
 
-                  {contacts.map((contact) => (
-                    <option
-                      key={contact.id}
-                      value={contact.id}
-                    >
-                      {getContactName(contact)}
-                    </option>
-                  ))}
+                  {contacts.map(
+                    (contact) => (
+                      <option
+                        key={contact.id}
+                        value={contact.id}
+                      >
+                        {getContactName(
+                          contact
+                        )}
+                      </option>
+                    )
+                  )}
                 </select>
 
                 <ChevronDown size={16} />
@@ -1543,32 +2581,38 @@ details,
 
               <div className="ai-writer-select">
                 <select
-  value={selectedCompanyId}
-  disabled={companies.length === 0}
-  onChange={(event) =>
-    setSelectedCompanyId(
-      event.target.value
-    )
-  }
->
+                  value={selectedCompanyId}
+                  disabled={
+                    companies.length === 0
+                  }
+                  onChange={(event) =>
+                    setSelectedCompanyId(
+                      event.target.value
+                    )
+                  }
+                >
                   <option value="">
-  {companies.length === 0
-    ? language === "es"
-      ? "No hay empresas disponibles"
-      : "No companies available"
-    : language === "es"
-      ? "Seleccionar empresa"
-      : "Select company"}
-</option>
+                    {companies.length === 0
+                      ? language === "es"
+                        ? "No hay empresas disponibles"
+                        : "No companies available"
+                      : language === "es"
+                        ? "Seleccionar empresa"
+                        : "Select company"}
+                  </option>
 
-                  {companies.map((company) => (
-                    <option
-                      key={company.id}
-                      value={company.id}
-                    >
-                      {getCompanyName(company)}
-                    </option>
-                  ))}
+                  {companies.map(
+                    (company) => (
+                      <option
+                        key={company.id}
+                        value={company.id}
+                      >
+                        {getCompanyName(
+                          company
+                        )}
+                      </option>
+                    )
+                  )}
                 </select>
 
                 <ChevronDown size={16} />
@@ -1583,24 +2627,26 @@ details,
               </span>
 
               <div className="ai-writer-select">
-               <select
-  value={selectedDealId}
-  disabled={deals.length === 0}
-  onChange={(event) =>
-    setSelectedDealId(
-      event.target.value
-    )
-  }
->
-                 <option value="">
-  {deals.length === 0
-    ? language === "es"
-      ? "No hay negocios disponibles"
-      : "No deals available"
-    : language === "es"
-      ? "Seleccionar negocio"
-      : "Select deal"}
-</option>
+                <select
+                  value={selectedDealId}
+                  disabled={
+                    deals.length === 0
+                  }
+                  onChange={(event) =>
+                    setSelectedDealId(
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="">
+                    {deals.length === 0
+                      ? language === "es"
+                        ? "No hay negocios disponibles"
+                        : "No deals available"
+                      : language === "es"
+                        ? "Seleccionar negocio"
+                        : "Select deal"}
+                  </option>
 
                   {deals.map((deal) => (
                     <option
@@ -1627,14 +2673,20 @@ details,
                 <select
                   value={tone}
                   onChange={(event) =>
-                    setTone(event.target.value)
+                    setTone(
+                      event.target.value
+                    )
                   }
                 >
                   {toneOptions.map(
                     (toneOption) => (
                       <option
-                        key={toneOption.value}
-                        value={toneOption.value}
+                        key={
+                          toneOption.value
+                        }
+                        value={
+                          toneOption.value
+                        }
                       >
                         {language === "es"
                           ? toneOption.labelEs
@@ -1656,6 +2708,7 @@ details,
               </span>
 
               <input
+                ref={objectiveInputRef}
                 type="text"
                 value={objective}
                 placeholder={
@@ -1663,39 +2716,45 @@ details,
                     ? "Ej. Agendar una llamada para revisar la propuesta"
                     : "Example: Schedule a call to review the proposal"
                 }
+                onFocus={() =>
+                  setActiveVariableField(
+                    "objective"
+                  )
+                }
                 onChange={(event) =>
                   setObjective(
                     event.target.value
                   )
                 }
               />
+
               <div className="ai-writer-objective-chips">
-  {quickObjectives.map((item) => (
-    <button
-      type="button"
-      key={item.id}
-      className={
-        objective ===
-        (language === "es"
-          ? item.es
-          : item.en)
-          ? "ai-writer-objective-chip ai-writer-objective-chip--active"
-          : "ai-writer-objective-chip"
-      }
-      onClick={() =>
-        setObjective(
-          language === "es"
-            ? item.es
-            : item.en
-        )
-      }
-    >
-      {language === "es"
-        ? item.es
-        : item.en}
-    </button>
-  ))}
-</div>
+                {quickObjectives.map(
+                  (item) => {
+                    const label =
+                      language === "es"
+                        ? item.es
+                        : item.en;
+
+                    return (
+                      <button
+                        type="button"
+                        key={item.id}
+                        className={
+                          objective === label
+                            ? "ai-writer-objective-chip ai-writer-objective-chip--active"
+                            : "ai-writer-objective-chip"
+                        }
+                        onClick={() =>
+                          setObjective(label)
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  }
+                )}
+              </div>
             </label>
 
             <label className="ai-writer-form__full">
@@ -1706,12 +2765,18 @@ details,
               </span>
 
               <textarea
+                ref={detailsInputRef}
                 rows="4"
                 value={details}
                 placeholder={
                   language === "es"
                     ? "Incluye condiciones, fechas, beneficios o contexto adicional."
                     : "Include conditions, dates, benefits, or additional context."
+                }
+                onFocus={() =>
+                  setActiveVariableField(
+                    "details"
+                  )
                 }
                 onChange={(event) =>
                   setDetails(
@@ -1727,76 +2792,95 @@ details,
               <div>
                 <Sparkles size={15} />
 
-                <strong>
-                  {language === "es"
-                    ? "Variables disponibles"
-                    : "Available variables"}
-                </strong>
-              </div>
+                <span>
+                  <strong>
+                    {language === "es"
+                      ? "Variables inteligentes del CRM"
+                      : "CRM smart variables"}
+                  </strong>
 
-              <small>
-                {language === "es"
-                  ? "Haz clic para copiar"
-                  : "Click to copy"}
-              </small>
+                  <small>
+                    {language === "es"
+                      ? `Haz clic para insertar en ${
+                          activeVariableField ===
+                          "objective"
+                            ? "Objetivo principal"
+                            : "Detalles adicionales"
+                        }`
+                      : `Click to insert into ${
+                          activeVariableField ===
+                          "objective"
+                            ? "Primary objective"
+                            : "Additional details"
+                        }`}
+                  </small>
+                </span>
+              </div>
             </div>
 
-            <div className="ai-writer-variables__grid">
-              {availableTemplateVariables.map(
-                (variable) => {
-                  const resolvedValue =
-                    currentVariables[
-                      variable.key
-                    ];
+            <div className="ai-writer-variable-groups">
+              {groupedVariables.map(
+                (group) => (
+                  <div
+                    className="ai-writer-variable-group"
+                    key={group.id}
+                  >
+                    <div className="ai-writer-variable-group__title">
+                      {language === "es"
+                        ? group.labelEs
+                        : group.label}
+                    </div>
 
-                  return (
-                    <button
-                      type="button"
-                      key={variable.key}
-                      title={
-                        resolvedValue ||
-                        variable.token
-                      }
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(
-                            variable.token
-                          );
+                    <div className="ai-writer-variables__grid">
+                      {group.variables.map(
+                        (variable) => {
+                          const resolvedValue =
+                            currentVariables[
+                              variable.key
+                            ];
 
-                          toast.success(
-                            language === "es"
-                              ? "Variable copiada"
-                              : "Variable copied",
-                            variable.token
-                          );
-                        } catch {
-                          toast.error(
-                            language === "es"
-                              ? "No se pudo copiar"
-                              : "Could not copy",
-                            variable.token
+                          return (
+                            <button
+                              type="button"
+                              key={variable.key}
+                              title={`${
+                                language ===
+                                "es"
+                                  ? "Insertar"
+                                  : "Insert"
+                              } ${
+                                variable.token
+                              }\n${
+                                resolvedValue
+                              }`}
+                              onClick={() =>
+                                insertVariableAtCursor(
+                                  variable
+                                )
+                              }
+                            >
+                              <code>
+                                {
+                                  variable.token
+                                }
+                              </code>
+
+                              <span>
+                                {language === "es"
+                                  ? variable.labelEs
+                                  : variable.label}
+                              </span>
+
+                              <small>
+                                {resolvedValue}
+                              </small>
+                            </button>
                           );
                         }
-                      }}
-                    >
-                      <code>
-                        {variable.token}
-                      </code>
-
-                      <span>
-                        {language === "es"
-                          ? variable.labelEs
-                          : variable.label}
-                      </span>
-
-                      {resolvedValue && (
-                        <small>
-                          {resolvedValue}
-                        </small>
                       )}
-                    </button>
-                  );
-                }
+                    </div>
+                  </div>
+                )
               )}
             </div>
           </section>
@@ -1868,7 +2952,9 @@ details,
                     : "Save template"
                 }
                 disabled={!generatedContent}
-                onClick={handleSaveTemplate}
+                onClick={
+                  handleSaveTemplate
+                }
               >
                 <Save size={16} />
               </button>
@@ -1889,38 +2975,80 @@ details,
           </div>
 
           {generatedContent ? (
-            <div className="ai-writer-document">
-              <label>
-                {language === "es"
-                  ? "Asunto o título"
-                  : "Subject or title"}
+            <>
+              <div className="ai-writer-score">
+                <div className="ai-writer-score__top">
+                  <div>
+                    <span>
+                      {language === "es"
+                        ? "Puntuación del contenido"
+                        : "Content score"}
+                    </span>
 
-                <input
-                  type="text"
-                  value={generatedSubject}
-                  onChange={(event) =>
-                    setGeneratedSubject(
-                      event.target.value
-                    )
-                  }
-                />
-              </label>
+                    <strong>
+                      {contentScore.score}/100
+                    </strong>
+                  </div>
 
-              <label>
-                {language === "es"
-                  ? "Contenido"
-                  : "Content"}
+                  <div
+                    className="ai-writer-score__bar"
+                    aria-label={`Content score ${contentScore.score} out of 100`}
+                  >
+                    <span
+                      style={{
+                        width: `${contentScore.score}%`,
+                      }}
+                    />
+                  </div>
+                </div>
 
-                <textarea
-                  value={generatedContent}
-                  onChange={(event) =>
-                    setGeneratedContent(
-                      event.target.value
-                    )
-                  }
-                />
-              </label>
-            </div>
+                {contentScore.suggestions.length >
+                  0 && (
+                  <div className="ai-writer-score__suggestions">
+                    {contentScore.suggestions.map(
+                      (suggestion) => (
+                        <span key={suggestion}>
+                          {suggestion}
+                        </span>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="ai-writer-document">
+                <label>
+                  {language === "es"
+                    ? "Asunto o título"
+                    : "Subject or title"}
+
+                  <input
+                    type="text"
+                    value={generatedSubject}
+                    onChange={(event) =>
+                      setGeneratedSubject(
+                        event.target.value
+                      )
+                    }
+                  />
+                </label>
+
+                <label>
+                  {language === "es"
+                    ? "Contenido"
+                    : "Content"}
+
+                  <textarea
+                    value={generatedContent}
+                    onChange={(event) =>
+                      setGeneratedContent(
+                        event.target.value
+                      )
+                    }
+                  />
+                </label>
+              </div>
+            </>
           ) : (
             <div className="ai-writer-empty">
               <span>

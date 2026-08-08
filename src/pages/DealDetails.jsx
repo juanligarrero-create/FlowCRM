@@ -1,29 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
-import { useToast } from "../components/ToastProvider.jsx";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Activity,
   ArrowLeft,
+  BarChart3,
+  BriefcaseBusiness,
   Building2,
   CalendarDays,
-  CalendarClock,
   CheckCircle2,
+  ChevronDown,
   CircleDollarSign,
   Clock3,
   Edit3,
   FileText,
+  Globe2,
+  ListChecks,
   Mail,
-  MessageSquare,
-  Phone,
-  Plus,
-  Save,
+  MessageSquareText,
+  RefreshCw,
   Sparkles,
   Target,
   Trash2,
+  TrendingUp,
   UserRound,
-  X,
 } from "lucide-react";
+
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
+import { useToast } from "../components/ToastProvider.jsx";
+
 import "./DealDetails.css";
+
+const STORAGE_KEY = "flowcrm-deals";
+const LANGUAGE_KEY = "flowcrm-language";
 
 const pipelineStages = [
   "Lead",
@@ -34,14 +41,6 @@ const pipelineStages = [
   "Lost",
 ];
 
-const dealOwners = [
-  "Juan Ligarrero",
-  "Maria Torres",
-  "Daniel Rivera",
-];
-
-const dealPriorities = ["Low", "Medium", "High"];
-
 const stageProbabilities = {
   Lead: 10,
   Qualified: 25,
@@ -51,1511 +50,1065 @@ const stageProbabilities = {
   Lost: 0,
 };
 
-const emptyDealForm = {
-  title: "",
-  company: "",
-  contact: "",
-  value: "",
-  closeDate: "",
-  stage: "Lead",
-  probability: "10",
-  owner: "Juan Ligarrero",
-  priority: "Medium",
+const stageLabels = {
+  Lead: { en: "Lead", es: "Prospecto" },
+  Qualified: { en: "Qualified", es: "Calificado" },
+  Proposal: { en: "Proposal", es: "Propuesta" },
+  Negotiation: { en: "Negotiation", es: "Negociación" },
+  Won: { en: "Won", es: "Ganado" },
+  Lost: { en: "Lost", es: "Perdido" },
+};
+
+const priorityLabels = {
+  Low: { en: "Low", es: "Baja" },
+  Medium: { en: "Medium", es: "Media" },
+  High: { en: "High", es: "Alta" },
+};
+
+const copy = {
+  en: {
+    back: "Back to deals",
+    moveStage: "Move stage",
+    editDeal: "Edit deal",
+    deleteDeal: "Delete",
+    overview: "Overview",
+    activity: "Activity",
+    tasks: "Tasks",
+    notes: "Notes",
+    files: "Files",
+    businessCase: "Business case",
+    aiSummary: "AI business summary",
+    aiSummaryHint: "A concise commercial interpretation based on the deal data.",
+    refreshSummary: "Refresh summary",
+    dealValue: "Deal value",
+    expectedDealValue: "Expected deal value",
+    projectedRoi: "Projected ROI",
+    roiPeriod: "ROI period",
+    payback: "Payback period",
+    implementationCost: "Implementation cost",
+    customerSavings: "Expected customer savings",
+    annualValue: "Expected annual value",
+    billingModel: "Billing model",
+    revenueType: "Revenue type",
+    problemTitle: "Main business problem",
+    problemLabel: "Main business problem",
+    solutionLabel: "Proposed solution",
+    successMetric: "Key success metric",
+    notProvided: "Not provided",
+    customer: "Customer",
+    company: "Company",
+    contact: "Contact",
+    owner: "Owner",
+    expectedCloseDate: "Expected close date",
+    decisionDeadline: "Decision deadline",
+    taskProgress: "Task progress",
+    completed: "completed",
+    timeline: "Deal timeline",
+    timelineHint: "Current stage progression and probability history.",
+    current: "Current",
+    probability: "Probability",
+    commercialSnapshot: "Commercial snapshot",
+    stage: "Stage",
+    priority: "Priority",
+    currency: "Currency",
+    closeProbability: "Close probability",
+    activityEmpty: "No activity has been recorded for this deal yet.",
+    tasksEmpty: "There are no tasks linked to this deal yet.",
+    notesEmpty: "No notes have been added yet.",
+    filesEmpty: "No files are attached to this deal yet.",
+    emails: "Emails",
+    emailHint: "Communication history related to this opportunity.",
+    emailEmpty: "No email activity is available yet.",
+    deleteTitle: "Delete deal?",
+    deleteConfirm: "Delete deal",
+    deleteMessage: (title) =>
+      `This will permanently delete "${title}". This action cannot be undone.`,
+    deleted: "Deal deleted",
+    deletedBody: (title) => `${title} was removed from the pipeline.`,
+    stageUpdated: "Stage updated",
+    stageUpdatedBody: (title, stage) => `${title} moved to ${stage}.`,
+    notFound: "Deal not found",
+    notFoundText: "This opportunity could not be found in local CRM data.",
+    returnToDeals: "Return to deals",
+  },
+  es: {
+    back: "Volver a negocios",
+    moveStage: "Mover etapa",
+    editDeal: "Editar negocio",
+    deleteDeal: "Eliminar",
+    overview: "Resumen",
+    activity: "Actividad",
+    tasks: "Tareas",
+    notes: "Notas",
+    files: "Archivos",
+    businessCase: "Caso de negocio",
+    aiSummary: "Resumen comercial con IA",
+    aiSummaryHint: "Una interpretación comercial concisa basada en los datos del negocio.",
+    refreshSummary: "Actualizar resumen",
+    dealValue: "Valor del negocio",
+    expectedDealValue: "Valor esperado",
+    projectedRoi: "ROI proyectado",
+    roiPeriod: "Periodo del ROI",
+    payback: "Periodo de recuperación",
+    implementationCost: "Costo de implementación",
+    customerSavings: "Ahorros esperados del cliente",
+    annualValue: "Valor anual esperado",
+    billingModel: "Modelo de facturación",
+    revenueType: "Tipo de ingreso",
+    problemTitle: "Problema principal del negocio",
+    problemLabel: "Problema principal del negocio",
+    solutionLabel: "Solución propuesta",
+    successMetric: "Indicador clave de éxito",
+    notProvided: "No disponible",
+    customer: "Cliente",
+    company: "Empresa",
+    contact: "Contacto",
+    owner: "Responsable",
+    expectedCloseDate: "Fecha estimada de cierre",
+    decisionDeadline: "Fecha límite de decisión",
+    taskProgress: "Progreso de tareas",
+    completed: "completadas",
+    timeline: "Cronología del negocio",
+    timelineHint: "Progresión actual de etapas e historial de probabilidad.",
+    current: "Actual",
+    probability: "Probabilidad",
+    commercialSnapshot: "Resumen comercial",
+    stage: "Etapa",
+    priority: "Prioridad",
+    currency: "Moneda",
+    closeProbability: "Probabilidad de cierre",
+    activityEmpty: "Todavía no se ha registrado actividad para este negocio.",
+    tasksEmpty: "Todavía no hay tareas vinculadas a este negocio.",
+    notesEmpty: "Todavía no se han agregado notas.",
+    filesEmpty: "Todavía no hay archivos adjuntos a este negocio.",
+    emails: "Correos",
+    emailHint: "Historial de comunicaciones relacionadas con esta oportunidad.",
+    emailEmpty: "Todavía no hay actividad de correo disponible.",
+    deleteTitle: "¿Eliminar negocio?",
+    deleteConfirm: "Eliminar negocio",
+    deleteMessage: (title) =>
+      `Se eliminará permanentemente "${title}". Esta acción no se puede deshacer.`,
+    deleted: "Negocio eliminado",
+    deletedBody: (title) => `${title} fue eliminado del pipeline.`,
+    stageUpdated: "Etapa actualizada",
+    stageUpdatedBody: (title, stage) => `${title} se movió a ${stage}.`,
+    notFound: "Negocio no encontrado",
+    notFoundText: "No se encontró esta oportunidad en los datos locales del CRM.",
+    returnToDeals: "Volver a negocios",
+  },
 };
 
 const readStoredArray = (key) => {
-  const savedData = localStorage.getItem(key);
+  const value = localStorage.getItem(key);
 
-  if (!savedData) {
+  if (!value) {
     return [];
   }
 
   try {
-    const parsedData = JSON.parse(savedData);
-
-    return Array.isArray(parsedData) ? parsedData : [];
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 };
 
-const formatCurrency = (value) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0));
-
-const formatDate = (date) => {
-  if (!date) {
-    return "No date";
+const localizePeriod = (value, language) => {
+  if (!value) {
+    return "";
   }
 
-  return new Date(
-    `${date}T00:00:00`
-  ).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const text = String(value).trim();
+
+  if (language === "en") {
+    return text
+      .replace(/\bmes\b/gi, "month")
+      .replace(/\bmeses\b/gi, "months")
+      .replace(/\baño\b/gi, "year")
+      .replace(/\baños\b/gi, "years");
+  }
+
+  return text
+    .replace(/\b1\s+months?\b/gi, "1 mes")
+    .replace(/\b(\d+(?:[.,]\d+)?)\s+months?\b/gi, "$1 meses")
+    .replace(/\b1\s+years?\b/gi, "1 año")
+    .replace(/\b(\d+(?:[.,]\d+)?)\s+years?\b/gi, "$1 años")
+    .replace(/\bmonth\b/gi, "mes")
+    .replace(/\bmonths\b/gi, "meses")
+    .replace(/\byear\b/gi, "año")
+    .replace(/\byears\b/gi, "años");
 };
 
 function DealDetails() {
-  const createFollowUpTask = () => {
-  const savedTasks = localStorage.getItem(
-    "flowcrm-tasks"
-  );
-
-  let currentTasks = [];
-
-  if (savedTasks) {
-    try {
-      const parsedTasks = JSON.parse(savedTasks);
-
-      currentTasks = Array.isArray(parsedTasks)
-        ? parsedTasks
-        : [];
-    } catch {
-      currentTasks = [];
-    }
-  }
-
-  const existingTask = currentTasks.find(
-    (task) =>
-      String(task.dealId) ===
-        String(deal.id) &&
-      task.status !== "Completed"
-  );
-
-  if (existingTask) {
-   toast.info(
-  "Follow-up already exists",
-  "This deal already has an active follow-up task."
-);
-    return;
-  }
-
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const dueDate = tomorrow
-    .toISOString()
-    .split("T")[0];
-
-  const newTask = {
-    id:
-      typeof crypto !== "undefined" &&
-      typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : Date.now(),
-    title: `Follow up: ${
-      deal.title || deal.name || "Deal"
-    }`,
-    description: `Contact ${
-      deal.contact || "the customer"
-    } regarding ${
-      deal.title || deal.name || "this deal"
-    }.`,
-    status: "To Do",
-    priority:
-      Number(deal.value || 0) >= 25000
-        ? "High"
-        : "Medium",
-    dueDate,
-    relatedType: deal.contact
-      ? "Contact"
-      : deal.company
-        ? "Company"
-        : "None",
-    relatedId:
-      deal.contactId ||
-      deal.companyId ||
-      "",
-    relatedName:
-      deal.contact ||
-      deal.company ||
-      "",
-    dealId: deal.id,
-    contactId: deal.contactId || "",
-    companyId: deal.companyId || "",
-    createdAt: new Date().toISOString(),
-  };
-
-  localStorage.setItem(
-    "flowcrm-tasks",
-    JSON.stringify([
-      newTask,
-      ...currentTasks,
-    ])
-  );
-
- toast.success(
-  "Follow-up created",
-  `A task for "${
-    deal.title || deal.name || "this deal"
-  }" was added to the To Do column.`
-);
-};
   const navigate = useNavigate();
-  const toast = useToast();
   const { id } = useParams();
-  const dealId = String(id);
+  const toast = useToast();
+
+  const [language, setLanguage] = useState(
+    () => localStorage.getItem(LANGUAGE_KEY) || "en"
+  );
+  const [activeTab, setActiveTab] = useState("overview");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [summaryVersion, setSummaryVersion] = useState(0);
+
+  const t = copy[language];
 
   const [deals, setDeals] = useState(() =>
-    readStoredArray("flowcrm-deals")
-  );
-
-  const contacts = useMemo(
-    () => readStoredArray("flowcrm-contacts"),
-    []
-  );
-
-  const companies = useMemo(
-    () => readStoredArray("flowcrm-companies"),
-    []
-  );
-
-  const tasks = useMemo(
-    () => readStoredArray("flowcrm-tasks"),
-    []
+    readStoredArray(STORAGE_KEY)
   );
 
   const deal = useMemo(
     () =>
       deals.find(
-        (item) => String(item.id) === dealId
+        (item) => String(item.id) === String(id)
       ),
-    [deals, dealId]
+    [deals, id]
   );
 
-  const relatedCompany = useMemo(() => {
-    if (!deal) {
-      return null;
-    }
-
-    return (
-      companies.find(
-        (company) =>
-          company.name?.toLowerCase() ===
-          deal.company?.toLowerCase()
-      ) || null
-    );
-  }, [companies, deal]);
-
-  const relatedContact = useMemo(() => {
-    if (!deal) {
-      return null;
-    }
-
-    return (
-      contacts.find(
-        (contact) =>
-          contact.name?.toLowerCase() ===
-          deal.contact?.toLowerCase()
-      ) || null
-    );
-  }, [contacts, deal]);
-
-  const relatedTasks = useMemo(() => {
-    if (!deal) {
-      return [];
-    }
-
-    return tasks.filter((task) => {
-      const relatedName =
-        task.relatedName || task.relatedTo || "";
-
-      return (
-        relatedName.toLowerCase() ===
-          deal.title.toLowerCase() ||
-        relatedName.toLowerCase() ===
-          deal.company.toLowerCase() ||
-        relatedName.toLowerCase() ===
-          deal.contact.toLowerCase()
-      );
-    });
-  }, [tasks, deal]);
-
-  const [notes, setNotes] = useState(() => {
-    const savedNotes = localStorage.getItem(
-      `flowcrm-deal-${dealId}-notes`
-    );
-
-    if (!savedNotes) {
-      return [];
-    }
+  const formatCurrency = (value, currency = "USD") => {
+    const locale =
+      language === "es"
+        ? "es-CO"
+        : currency === "AUD"
+          ? "en-AU"
+          : currency === "GBP"
+            ? "en-GB"
+            : currency === "CAD"
+              ? "en-CA"
+              : "en-US";
 
     try {
-      const parsedNotes = JSON.parse(savedNotes);
-
-      return Array.isArray(parsedNotes)
-        ? parsedNotes
-        : [];
+      return new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
+      }).format(Number(value || 0));
     } catch {
-      return [];
+      return `${currency} ${Number(value || 0).toLocaleString(locale)}`;
     }
-  });
-
-  const [activities, setActivities] = useState(() => {
-    const savedActivities = localStorage.getItem(
-      `flowcrm-deal-${dealId}-activities`
-    );
-
-    if (!savedActivities) {
-      return [];
-    }
-
-    try {
-      const parsedActivities = JSON.parse(
-        savedActivities
-      );
-
-      return Array.isArray(parsedActivities)
-        ? parsedActivities
-        : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [newNote, setNewNote] = useState("");
-  const [newActivity, setNewActivity] = useState("");
-  const [activityType, setActivityType] =
-    useState("Call");
-  const [isEditModalOpen, setIsEditModalOpen] =
-    useState(false);
-  const [dealForm, setDealForm] = useState({
-    ...emptyDealForm,
-  });
-  const [formError, setFormError] = useState("");
-
-  useEffect(() => {
-    localStorage.setItem(
-      "flowcrm-deals",
-      JSON.stringify(deals)
-    );
-  }, [deals]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      `flowcrm-deal-${dealId}-notes`,
-      JSON.stringify(notes)
-    );
-  }, [notes, dealId]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      `flowcrm-deal-${dealId}-activities`,
-      JSON.stringify(activities)
-    );
-  }, [activities, dealId]);
-
-  const expectedRevenue = deal
-    ? Number(deal.value || 0) *
-      (Number(deal.probability || 0) / 100)
-    : 0;
-
-  const openTasks = relatedTasks.filter(
-    (task) => task.status !== "Completed"
-  );
-
-  const completedTasks = relatedTasks.filter(
-    (task) => task.status === "Completed"
-  );
-
-const activeFollowUp = openTasks.find(
-  (task) =>
-    String(task.dealId) ===
-    String(deal?.id)
-);
-
-const dealHealth = useMemo(() => {
-  if (!deal) {
-    return null;
-  }
-
-  const probability = Number(
-    deal.probability || 0
-  );
-
-  const value = Number(deal.value || 0);
-
-  let score = 50;
-  const reasons = [];
-  const actions = [];
-
-  score += Math.min(
-    probability * 0.3,
-    30
-  );
-
-  if (activities.length > 0) {
-    score += 10;
-    reasons.push(
-      `${activities.length} customer ${
-        activities.length === 1
-          ? "activity has"
-          : "activities have"
-      } been recorded.`
-    );
-  } else {
-    score -= 15;
-    reasons.push(
-      "No customer activity has been recorded."
-    );
-    actions.push(
-      "Record a call, email, or meeting."
-    );
-  }
-
-  if (activeFollowUp) {
-    score += 10;
-    reasons.push(
-      `An active follow-up is scheduled for ${formatDate(
-        activeFollowUp.dueDate
-      )}.`
-    );
-  } else {
-    score -= 10;
-    reasons.push(
-      "There is no active follow-up task."
-    );
-    actions.push(
-      "Create a follow-up task."
-    );
-  }
-
-  if (probability < 20) {
-    actions.push(
-      "Qualify the customer’s need and budget."
-    );
-    actions.push(
-      "Schedule a discovery call."
-    );
-  } else if (probability < 60) {
-    actions.push(
-      "Address objections and send supporting information."
-    );
-  } else if (probability < 100) {
-    actions.push(
-      "Confirm decision makers and closing steps."
-    );
-  }
-
-  if (value >= 25000) {
-    reasons.push(
-      `This is a high-value opportunity worth ${formatCurrency(
-        value
-      )}.`
-    );
-  }
-
-  score = Math.max(
-    0,
-    Math.min(100, Math.round(score))
-  );
-
-  const risk =
-    score >= 75
-      ? {
-          id: "low",
-          label: "Low risk",
-        }
-      : score >= 50
-        ? {
-            id: "medium",
-            label: "Medium risk",
-          }
-        : {
-            id: "high",
-            label: "High risk",
-          };
-
-  return {
-    score,
-    risk,
-    reasons: reasons.slice(0, 4),
-    actions: [...new Set(actions)].slice(
-      0,
-      4
-    ),
-  };
-}, [
-  deal,
-  activities.length,
-  activeFollowUp,
-]);
-  const getActivityIcon = (type) => {
-    if (type === "Email") {
-      return <Mail size={17} />;
-    }
-
-    if (type === "Meeting") {
-      return <UserRound size={17} />;
-    }
-
-    if (type === "Note") {
-      return <FileText size={17} />;
-    }
-
-    return <Phone size={17} />;
   };
 
-  const openEditModal = () => {
-    if (!deal) {
-      return;
+  const formatDate = (date) => {
+    if (!date) {
+      return t.notProvided;
     }
 
-    setDealForm({
-      title: deal.title || "",
-      company: deal.company || "",
-      contact: deal.contact || "",
-      value: String(deal.value || ""),
-      closeDate: deal.closeDate || "",
-      stage: deal.stage || "Lead",
-      probability: String(
-        deal.probability ??
-          stageProbabilities[deal.stage] ??
-          10
-      ),
-      owner: deal.owner || "Juan Ligarrero",
-      priority: deal.priority || "Medium",
-    });
-
-    setFormError("");
-    setIsEditModalOpen(true);
-  };
-
-  const closeEditModal = () => {
-    setIsEditModalOpen(false);
-    setFormError("");
-  };
-
-  const handleStageChange = (stage) => {
-    setDealForm({
-      ...dealForm,
-      stage,
-      probability: String(
-        stageProbabilities[stage]
-      ),
-    });
-  };
-  const handleSaveDeal = (event) => {
-    event.preventDefault();
-
-    if (
-      !dealForm.title.trim() ||
-      !dealForm.company.trim() ||
-      !dealForm.contact.trim() ||
-      !String(dealForm.value).trim() ||
-      !dealForm.closeDate ||
-      !dealForm.owner
-    ) {
-      setFormError(
-        "Please complete all required deal fields."
-      );
-      return;
-    }
-
-    const numericValue = Number(dealForm.value);
-    const numericProbability = Number(
-      dealForm.probability
-    );
-
-    if (
-      Number.isNaN(numericValue) ||
-      numericValue <= 0
-    ) {
-      setFormError(
-        "Deal value must be greater than zero."
-      );
-      return;
-    }
-
-    if (
-      Number.isNaN(numericProbability) ||
-      numericProbability < 0 ||
-      numericProbability > 100
-    ) {
-      setFormError(
-        "Probability must be between 0 and 100."
-      );
-      return;
-    }
-
-    setDeals((currentDeals) =>
-      currentDeals.map((item) =>
-        String(item.id) === dealId
-          ? {
-              ...item,
-              ...dealForm,
-              value: numericValue,
-              probability: numericProbability,
-            }
-          : item
-      )
-    );
-
-    closeEditModal();
-  };
-
-  const handleAddNote = (event) => {
-    event.preventDefault();
-
-    const trimmedNote = newNote.trim();
-
-    if (!trimmedNote) {
-      return;
-    }
-
-    setNotes((currentNotes) => [
+    return new Date(`${date}T00:00:00`).toLocaleDateString(
+      language === "es" ? "es-CO" : "en-US",
       {
-        id: Date.now(),
-        content: trimmedNote,
-        createdAt: new Date().toLocaleString(),
-      },
-      ...currentNotes,
-    ]);
-
-    setNewNote("");
-  };
-
-  const handleDeleteNote = (noteId) => {
-    setNotes((currentNotes) =>
-      currentNotes.filter(
-        (note) => note.id !== noteId
-      )
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }
     );
   };
 
-  const handleAddActivity = (event) => {
-    event.preventDefault();
-
-    const trimmedActivity = newActivity.trim();
-
-    if (!trimmedActivity) {
-      return;
-    }
-
-    setActivities((currentActivities) => [
-      {
-        id: Date.now(),
-        type: activityType,
-        description: trimmedActivity,
-        createdAt: new Date().toLocaleString(),
-      },
-      ...currentActivities,
-    ]);
-
-    setNewActivity("");
-    setActivityType("Call");
-  };
-
-  const handleDeleteActivity = (activityId) => {
-    setActivities((currentActivities) =>
-      currentActivities.filter(
-        (activity) => activity.id !== activityId
-      )
-    );
-  };
-
-  const handleDeleteDeal = () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this deal?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    const updatedDeals = deals.filter(
-      (item) => String(item.id) !== dealId
-    );
-
-    localStorage.setItem(
-      "flowcrm-deals",
-      JSON.stringify(updatedDeals)
-    );
-
-    localStorage.removeItem(
-      `flowcrm-deal-${dealId}-notes`
-    );
-
-    localStorage.removeItem(
-      `flowcrm-deal-${dealId}-activities`
-    );
-
-    navigate("/deals");
+  const toggleLanguage = () => {
+    const nextLanguage = language === "en" ? "es" : "en";
+    setLanguage(nextLanguage);
+    localStorage.setItem(LANGUAGE_KEY, nextLanguage);
   };
 
   if (!deal) {
     return (
       <div className="deal-details-page">
-        <button
-          type="button"
-          className="deal-details__back"
-          onClick={() => navigate("/deals")}
-        >
-          <ArrowLeft size={18} />
-          Back to deals
-        </button>
-
-        <section className="deal-details__not-found">
-          <CircleDollarSign size={45} />
-
-          <h1>Deal not found</h1>
-
-          <p>
-            This opportunity may have been deleted or the
-            address is incorrect.
-          </p>
-
+        <div className="deal-details-not-found">
+          <BriefcaseBusiness size={34} />
+          <h1>{t.notFound}</h1>
+          <p>{t.notFoundText}</p>
           <button
             type="button"
             onClick={() => navigate("/deals")}
           >
-            Return to deals
+            <ArrowLeft size={17} />
+            {t.returnToDeals}
           </button>
-        </section>
+        </div>
       </div>
     );
   }
 
+  const currency = deal.currency || "USD";
+  const expectedDealValue =
+    Number(deal.value || 0) *
+    (Number(deal.probability || 0) / 100);
+
+  const tasks = Array.isArray(deal.tasks)
+    ? deal.tasks
+    : [];
+
+  const completedTasks = tasks.filter(
+    (task) => task.completed
+  ).length;
+
+  const taskCompletion =
+    tasks.length === 0
+      ? 0
+      : Math.round(
+          (completedTasks / tasks.length) * 100
+        );
+
+  const stageIndex = pipelineStages.indexOf(
+    deal.stage
+  );
+
+  const aiSummary = useMemo(() => {
+    const problem =
+      deal.businessProblem ||
+      (language === "es"
+        ? "un reto comercial u operativo que todavía necesita mayor definición"
+        : "a commercial or operational challenge that still needs clearer definition");
+
+    const solution =
+      deal.solutionSummary ||
+      (language === "es"
+        ? "una solución orientada a mejorar la visibilidad, el seguimiento y la ejecución comercial"
+        : "a solution focused on improving visibility, follow-up, and commercial execution");
+
+    const roiSentence =
+      deal.projectedRoi !== undefined &&
+      deal.projectedRoi !== null &&
+      String(deal.projectedRoi).trim() !== ""
+        ? language === "es"
+          ? `Se proyecta un ROI aproximado del ${deal.projectedRoi}%${
+              deal.roiPeriod
+                ? ` durante ${localizePeriod(
+                    deal.roiPeriod,
+                    "es"
+                  )}`
+                : ""
+            }.`
+          : `The projected ROI is approximately ${deal.projectedRoi}%${
+              deal.roiPeriod
+                ? ` over ${localizePeriod(
+                    deal.roiPeriod,
+                    "en"
+                  )}`
+                : ""
+            }.`
+        : "";
+
+    const paybackSentence = deal.paybackPeriod
+      ? language === "es"
+        ? `El periodo estimado de recuperación es ${localizePeriod(
+            deal.paybackPeriod,
+            "es"
+          )}.`
+        : `The estimated payback period is ${localizePeriod(
+            deal.paybackPeriod,
+            "en"
+          )}.`
+      : "";
+
+    if (language === "es") {
+      return `${deal.company} está evaluando ${deal.title}, actualmente en la etapa ${stageLabels[deal.stage]?.es || deal.stage} con una probabilidad de cierre del ${deal.probability || 0}%. La oportunidad representa un valor de ${formatCurrency(
+        deal.value,
+        currency
+      )} y un valor esperado de ${formatCurrency(
+        expectedDealValue,
+        currency
+      )}. El problema principal identificado es ${problem}. La solución propuesta busca ${solution}. ${roiSentence} ${paybackSentence}`.trim();
+    }
+
+    return `${deal.company} is evaluating ${deal.title}, currently in the ${stageLabels[deal.stage]?.en || deal.stage} stage with a ${deal.probability || 0}% probability of closing. The opportunity represents a deal value of ${formatCurrency(
+      deal.value,
+      currency
+    )} and an expected deal value of ${formatCurrency(
+      expectedDealValue,
+      currency
+    )}. The primary business problem is ${problem}. The proposed solution is designed around ${solution}. ${roiSentence} ${paybackSentence}`.trim();
+  }, [
+    deal,
+    language,
+    currency,
+    expectedDealValue,
+    summaryVersion,
+  ]);
+
+  const handleMoveStage = (stage) => {
+    const updatedDeals = deals.map((item) =>
+      item.id === deal.id
+        ? {
+            ...item,
+            stage,
+            probability: stageProbabilities[stage],
+          }
+        : item
+    );
+
+    setDeals(updatedDeals);
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(updatedDeals)
+    );
+
+    toast.info(
+      t.stageUpdated,
+      t.stageUpdatedBody(
+        deal.title,
+        stageLabels[stage][language]
+      )
+    );
+  };
+
+  const confirmDelete = () => {
+    const updatedDeals = deals.filter(
+      (item) => item.id !== deal.id
+    );
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(updatedDeals)
+    );
+
+    toast.success(
+      t.deleted,
+      t.deletedBody(deal.title)
+    );
+
+    navigate("/deals");
+  };
+
+  const renderEmptyState = (text, Icon) => (
+    <div className="deal-details-empty-state">
+      <Icon size={26} />
+      <p>{text}</p>
+    </div>
+  );
+
   return (
     <div className="deal-details-page">
-      <button
-        type="button"
-        className="deal-details__back"
-        onClick={() => navigate("/deals")}
-      >
-        <ArrowLeft size={18} />
-        Back to deals
-      </button>
+      <section className="deal-details-toolbar">
+        <button
+          type="button"
+          className="deal-details-back"
+          onClick={() => navigate("/deals")}
+        >
+          <ArrowLeft size={17} />
+          {t.back}
+        </button>
 
-      <section className="deal-details__hero">
-        <div className="deal-details__hero-main">
-          <div className="deal-details__hero-icon">
-            <CircleDollarSign size={30} />
-          </div>
-
-          <div>
-            <div className="deal-details__title-row">
-              <h1>{deal.title}</h1>
-
-              <span
-                className={`deal-details__stage deal-details__stage--${deal.stage
-                  .toLowerCase()
-                  .replaceAll(" ", "-")}`}
-              >
-                {deal.stage}
-              </span>
-
-              <span
-                className={`deal-details__priority deal-details__priority--${(
-                  deal.priority || "Medium"
-                ).toLowerCase()}`}
-              >
-                {deal.priority || "Medium"}
-              </span>
-            </div>
-
-            <p>
-              {deal.company} · {deal.contact}
-            </p>
-          </div>
-        </div>
-
-        <div className="deal-details__hero-actions">
+        <div className="deal-details-toolbar__actions">
           <button
             type="button"
-            className="deal-details__edit"
-            onClick={openEditModal}
+            className="deal-details-language"
+            onClick={toggleLanguage}
           >
-            <Edit3 size={17} />
-            Edit deal
+            <Globe2 size={17} />
+            <span>
+              {language === "en" ? "EN" : "ES"}
+            </span>
+            <small>
+              {language === "en"
+                ? "English"
+                : "Español"}
+            </small>
           </button>
-<button
-  type="button"
-  className="deal-details__follow-up-button"
-  onClick={createFollowUpTask}
->
-  <CalendarClock size={17} />
-  Create follow-up
-</button>
-          <button
-            type="button"
-            className="deal-details__delete"
-            onClick={handleDeleteDeal}
-          >
-            <Trash2 size={17} />
-            Delete
-          </button>
-        </div>
-      </section>
 
-      <section className="deal-details__stats">
-        <article>
-          <CircleDollarSign size={21} />
-
-          <div>
-            <span>Deal value</span>
-            <strong>
-              {formatCurrency(deal.value)}
-            </strong>
-          </div>
-        </article>
-
-        <article>
-          <Target size={21} />
-
-          <div>
-            <span>Probability</span>
-            <strong>
-              {deal.probability ?? 0}%
-            </strong>
-          </div>
-        </article>
-
-        <article>
-          <CheckCircle2 size={21} />
-
-          <div>
-            <span>Expected revenue</span>
-            <strong>
-              {formatCurrency(expectedRevenue)}
-            </strong>
-          </div>
-        </article>
-
-        <article>
-          <CalendarDays size={21} />
-
-          <div>
-            <span>Close date</span>
-            <strong>
-              {formatDate(deal.closeDate)}
-            </strong>
-          </div>
-        </article>
-      </section>
-
-      <div className="deal-details__layout">
-        <main className="deal-details__main">
-          <section className="deal-details__panel">
-            <div className="deal-details__panel-header">
-              <div>
-                <h2>Activity timeline</h2>
-
-                <p>
-                  Calls, meetings, emails, and deal updates.
-                </p>
-              </div>
-
-              <span>{activities.length}</span>
-            </div>
-
-            <form
-              className="deal-details__activity-form"
-              onSubmit={handleAddActivity}
+          <div className="deal-details-stage-select">
+            <select
+              value={deal.stage}
+              onChange={(event) =>
+                handleMoveStage(event.target.value)
+              }
             >
-              <select
-                value={activityType}
-                onChange={(event) =>
-                  setActivityType(event.target.value)
-                }
-              >
-                <option value="Call">Call</option>
-                <option value="Email">Email</option>
-                <option value="Meeting">
-                  Meeting
-                </option>
-                <option value="Note">Note</option>
-              </select>
-
-              <input
-                type="text"
-                placeholder="Describe the activity..."
-                value={newActivity}
-                onChange={(event) =>
-                  setNewActivity(event.target.value)
-                }
-              />
-
-              <button type="submit">
-                <Plus size={17} />
-                Add
-              </button>
-            </form>
-
-            {activities.length === 0 ? (
-              <div className="deal-details__empty">
-                <Activity size={29} />
-
-                <p>No activity recorded yet.</p>
-              </div>
-            ) : (
-              <div className="deal-details__timeline">
-                {activities.map((activity) => (
-                  <article
-                    className="deal-details__timeline-item"
-                    key={activity.id}
-                  >
-                    <div className="deal-details__timeline-icon">
-                      {getActivityIcon(activity.type)}
-                    </div>
-
-                    <div>
-                      <div className="deal-details__timeline-heading">
-                        <strong>{activity.type}</strong>
-
-                        <button
-                          type="button"
-                          aria-label="Delete activity"
-                          onClick={() =>
-                            handleDeleteActivity(
-                              activity.id
-                            )
-                          }
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-
-                      <p>{activity.description}</p>
-
-                      <span>{activity.createdAt}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="deal-details__panel">
-            <div className="deal-details__panel-header">
-              <div>
-                <h2>Related tasks</h2>
-
-                <p>
-                  Follow-ups connected to this opportunity.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="deal-details__view-tasks"
-                onClick={() => navigate("/tasks")}
-              >
-                View all tasks
-              </button>
-            </div>
-
-            {relatedTasks.length === 0 ? (
-              <div className="deal-details__empty">
-                <CheckCircle2 size={29} />
-
-                <p>No related tasks found.</p>
-              </div>
-            ) : (
-              <div className="deal-details__tasks">
-                {relatedTasks.map((task) => (
-                  <article key={task.id}>
-                    <div
-                      className={`deal-details__task-icon deal-details__task-icon--${task.status
-                        .toLowerCase()
-                        .replaceAll(" ", "-")}`}
-                    >
-                      {task.status === "Completed" ? (
-                        <CheckCircle2 size={18} />
-                      ) : (
-                        <Clock3 size={18} />
-                      )}
-                    </div>
-
-                    <div>
-                      <h3>{task.title}</h3>
-                      <p>{task.description}</p>
-
-                      <span>
-                        <CalendarDays size={13} />
-                        {formatDate(task.dueDate)}
-                      </span>
-                    </div>
-
-                    <strong>{task.status}</strong>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-        </main>
-        <aside className="deal-details__sidebar">
-          <section className="deal-details__panel">
-            <div className="deal-details__panel-header">
-              <div>
-                <h2>Deal information</h2>
-
-                <p>
-                  Main ownership and relationship details.
-                </p>
-              </div>
-            </div>
-
-            <div className="deal-details__information">
-              <div>
-                <Building2 size={18} />
-
-                <span>
-                  <small>Company</small>
-
-                  {relatedCompany ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          `/companies/${relatedCompany.id}`
-                        )
-                      }
-                    >
-                      {deal.company}
-                    </button>
-                  ) : (
-                    <strong>{deal.company}</strong>
-                  )}
-                </span>
-              </div>
-
-              <div>
-                <UserRound size={18} />
-
-                <span>
-                  <small>Contact</small>
-
-                  {relatedContact ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          `/contacts/${relatedContact.id}`
-                        )
-                      }
-                    >
-                      {deal.contact}
-                    </button>
-                  ) : (
-                    <strong>{deal.contact}</strong>
-                  )}
-                </span>
-              </div>
-
-              <div>
-                <UserRound size={18} />
-
-                <span>
-                  <small>Deal owner</small>
-                  <strong>
-                    {deal.owner || "Juan Ligarrero"}
-                  </strong>
-                </span>
-              </div>
-
-              <div>
-                <Target size={18} />
-
-                <span>
-                  <small>Pipeline stage</small>
-                  <strong>{deal.stage}</strong>
-                </span>
-              </div>
-
-              <div>
-                <CalendarDays size={18} />
-
-                <span>
-                  <small>Expected close date</small>
-                  <strong>
-                    {formatDate(deal.closeDate)}
-                  </strong>
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <section className="deal-details__panel">
-            <div className="deal-details__panel-header">
-              <div>
-                <h2>Notes</h2>
-
-                <p>
-                  Important context about this opportunity.
-                </p>
-              </div>
-
-              <span>{notes.length}</span>
-            </div>
-
-            <form
-              className="deal-details__note-form"
-              onSubmit={handleAddNote}
-            >
-              <textarea
-                placeholder="Write a note about this deal..."
-                value={newNote}
-                onChange={(event) =>
-                  setNewNote(event.target.value)
-                }
-              />
-
-              <button type="submit">
-                <Plus size={17} />
-                Add note
-              </button>
-            </form>
-
-            {notes.length === 0 ? (
-              <div className="deal-details__empty deal-details__empty--small">
-                <MessageSquare size={26} />
-
-                <p>No notes yet.</p>
-              </div>
-            ) : (
-              <div className="deal-details__notes">
-                {notes.map((note) => (
-                  <article key={note.id}>
-                    <div>
-                      <span>{note.createdAt}</span>
-
-                      <button
-                        type="button"
-                        aria-label="Delete note"
-                        onClick={() =>
-                          handleDeleteNote(note.id)
-                        }
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-
-                    <p>{note.content}</p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="deal-details__panel">
-            <div className="deal-details__panel-header">
-              <div>
-               <section className="deal-details__panel deal-health">
-  <div className="deal-details__panel-header">
-    <div>
-      <h2>AI next best action</h2>
-
-      <p>
-        Deal health, risk signals, and recommended actions.
-      </p>
-    </div>
-
-    <Sparkles size={19} />
-  </div>
-
-  <div className="deal-health__score-row">
-    <div
-      className={`deal-health__score deal-health__score--${dealHealth.risk.id}`}
-    >
-      <strong>{dealHealth.score}</strong>
-      <span>/100</span>
-    </div>
-
-    <div>
-      <small>Deal health</small>
-
-      <strong
-        className={`deal-health__risk deal-health__risk--${dealHealth.risk.id}`}
-      >
-        {dealHealth.risk.label}
-      </strong>
-    </div>
-  </div>
-
- <div
-  className={`deal-health__progress deal-health__progress--${dealHealth.risk.id}`}
->
-    <span
-      style={{
-        width: `${dealHealth.score}%`,
-      }}
-    />
-  </div>
-
-  <div className="deal-health__section">
-    <strong>Why</strong>
-
-    <ul>
-      {dealHealth.reasons.map((reason) => (
-        <li key={reason}>
-          <CheckCircle2 size={14} />
-          <span>{reason}</span>
-        </li>
-      ))}
-    </ul>
-  </div>
-
-  <div className="deal-health__section">
-    <strong>Recommended actions</strong>
-
-    <ol>
-      {dealHealth.actions.map((action) => (
-        <li key={action}>{action}</li>
-      ))}
-    </ol>
-  </div>
-
-  <div className="deal-health__actions">
-    <button
-      type="button"
-      onClick={() => navigate("/ai-writer")}
-    >
-      <Mail size={15} />
-      Generate email
-    </button>
-
-    <button
-      type="button"
-      onClick={() => navigate("/whatsapp")}
-    >
-      <MessageSquare size={15} />
-      Generate WhatsApp
-    </button>
-
-    <button
-      type="button"
-      onClick={createFollowUpTask}
-    >
-      <CalendarClock size={15} />
-      Create follow-up
-    </button>
-  </div>
-</section>
-                <h2>CRM summary</h2>
-
-                <p>
-                  Current status of this opportunity.
-                </p>
-              </div>
-            </div>
-
-            <div className="deal-details__summary">
-              <div>
-                <span>Open tasks</span>
-                <strong>{openTasks.length}</strong>
-              </div>
-
-              <div>
-                <span>Completed tasks</span>
-                <strong>{completedTasks.length}</strong>
-              </div>
-
-              <div>
-                <span>Activities</span>
-                <strong>{activities.length}</strong>
-              </div>
-
-              <div>
-                <span>Notes</span>
-                <strong>{notes.length}</strong>
-              </div>
-            </div>
-          </section>
-        </aside>
-      </div>
-
-      {isEditModalOpen && (
-        <div className="deal-details-modal">
-          <div
-            className="deal-details-modal__overlay"
-            onClick={closeEditModal}
-          />
-
-          <div className="deal-details-modal__content">
-            <div className="deal-details-modal__header">
-              <div>
-                <h2>Edit deal</h2>
-
-                <p>
-                  Update this opportunity and its forecast.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                aria-label="Close edit deal modal"
-                onClick={closeEditModal}
-              >
-                <X size={21} />
-              </button>
-            </div>
-
-            <form
-              className="deal-details-modal__form"
-              onSubmit={handleSaveDeal}
-            >
-              {formError && (
-                <p className="deal-details-modal__error">
-                  {formError}
-                </p>
-              )}
-
-              <label>
-                Deal title
-                <input
-                  type="text"
-                  value={dealForm.title}
-                  onChange={(event) =>
-                    setDealForm({
-                      ...dealForm,
-                      title: event.target.value,
-                    })
+              {pipelineStages.map((stage) => (
+                <option
+                  value={stage}
+                  key={stage}
+                >
+                  {
+                    stageLabels[stage][
+                      language
+                    ]
                   }
-                />
-              </label>
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={16} />
+          </div>
 
-              <div className="deal-details-modal__form-grid">
-                <label>
-                  Company
-                  {companies.length > 0 ? (
-                    <select
-                      value={dealForm.company}
-                      onChange={(event) =>
-                        setDealForm({
-                          ...dealForm,
-                          company: event.target.value,
-                          contact: "",
-                        })
-                      }
-                    >
-                      <option value="">
-                        Select a company
-                      </option>
+          <button
+            type="button"
+            className="deal-details-action"
+            onClick={() =>
+              navigate(`/deals?edit=${deal.id}`)
+            }
+          >
+            <Edit3 size={16} />
+            {t.editDeal}
+          </button>
 
-                      {companies.map((company) => (
-                        <option
-                          value={company.name}
-                          key={company.id}
-                        >
-                          {company.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={dealForm.company}
-                      onChange={(event) =>
-                        setDealForm({
-                          ...dealForm,
-                          company: event.target.value,
-                        })
-                      }
-                    />
-                  )}
-                </label>
+          <button
+            type="button"
+            className="deal-details-action deal-details-action--danger"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 size={16} />
+            {t.deleteDeal}
+          </button>
+        </div>
+      </section>
 
-                <label>
-                  Contact
-                  {contacts.length > 0 ? (
-                    <select
-                      value={dealForm.contact}
-                      onChange={(event) =>
-                        setDealForm({
-                          ...dealForm,
-                          contact: event.target.value,
-                        })
-                      }
-                    >
-                      <option value="">
-                        Select a contact
-                      </option>
+      <section className="deal-details-hero">
+        <div className="deal-details-hero__main">
+          <span className="deal-details-hero__eyebrow">
+            <BriefcaseBusiness size={15} />
+            FlowCRM
+          </span>
 
-                      {contacts.map((contact) => (
-                        <option
-                          value={contact.name}
-                          key={contact.id}
-                        >
-                          {contact.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={dealForm.contact}
-                      onChange={(event) =>
-                        setDealForm({
-                          ...dealForm,
-                          contact: event.target.value,
-                        })
-                      }
-                    />
-                  )}
-                </label>
+          <h1>{deal.title}</h1>
+
+          <div className="deal-details-hero__meta">
+            <span>
+              <Building2 size={15} />
+              {deal.company}
+            </span>
+
+            <span>
+              <UserRound size={15} />
+              {deal.contact}
+            </span>
+
+            <span>
+              <CalendarDays size={15} />
+              {formatDate(deal.closeDate)}
+            </span>
+          </div>
+
+          <div className="deal-details-hero__badges">
+            <span className="deal-details-stage-badge">
+              {
+                stageLabels[deal.stage][
+                  language
+                ]
+              }
+            </span>
+
+            <span className="deal-details-probability-badge">
+              {deal.probability}%{" "}
+              {t.probability.toLowerCase()}
+            </span>
+
+            <span className="deal-details-priority-badge">
+              {priorityLabels[
+                deal.priority || "Medium"
+              ]?.[language] ||
+                deal.priority ||
+                "Medium"}
+            </span>
+          </div>
+        </div>
+
+        <div className="deal-details-hero__snapshot">
+          <span>{t.commercialSnapshot}</span>
+
+          <div>
+            <small>{t.stage}</small>
+            <strong>
+              {
+                stageLabels[deal.stage][
+                  language
+                ]
+              }
+            </strong>
+          </div>
+
+          <div>
+            <small>
+              {t.closeProbability}
+            </small>
+            <strong>{deal.probability}%</strong>
+          </div>
+
+          <div>
+            <small>{t.currency}</small>
+            <strong>{currency}</strong>
+          </div>
+        </div>
+      </section>
+
+      <nav className="deal-details-tabs">
+        {[
+          ["overview", t.overview],
+          ["activity", t.activity],
+          ["tasks", `${t.tasks} (${tasks.length})`],
+          ["notes", t.notes],
+          ["files", t.files],
+          ["emails", t.emails],
+        ].map(([tabId, label]) => (
+          <button
+            type="button"
+            key={tabId}
+            className={
+              activeTab === tabId
+                ? "deal-details-tab deal-details-tab--active"
+                : "deal-details-tab"
+            }
+            onClick={() =>
+              setActiveTab(tabId)
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === "overview" && (
+        <div className="deal-details-layout">
+          <main className="deal-details-main">
+            <section className="deal-details-card">
+              <div className="deal-details-section-heading">
+                <div>
+                  <CircleDollarSign size={18} />
+                  <span>
+                    <strong>{t.businessCase}</strong>
+                    <small>
+                      {language === "es"
+                        ? "Métricas financieras principales de la oportunidad."
+                        : "Core financial metrics for the opportunity."}
+                    </small>
+                  </span>
+                </div>
               </div>
 
-              <div className="deal-details-modal__form-grid">
-                <label>
-                  Deal value
-                  <input
-                    type="number"
-                    min="1"
-                    value={dealForm.value}
-                    onChange={(event) =>
-                      setDealForm({
-                        ...dealForm,
-                        value: event.target.value,
-                      })
-                    }
-                  />
-                </label>
+              <div className="deal-details-metric-grid">
+                <article className="deal-details-metric">
+                  <span>{t.dealValue}</span>
+                  <strong>
+                    {formatCurrency(
+                      deal.value,
+                      currency
+                    )}
+                  </strong>
+                </article>
 
-                <label>
-                  Probability
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={dealForm.probability}
-                    onChange={(event) =>
-                      setDealForm({
-                        ...dealForm,
-                        probability:
-                          event.target.value,
-                      })
-                    }
-                  />
-                </label>
+                <article className="deal-details-metric">
+                  <span>
+                    {t.expectedDealValue}
+                  </span>
+                  <strong>
+                    {formatCurrency(
+                      expectedDealValue,
+                      currency
+                    )}
+                  </strong>
+                </article>
+
+                <article className="deal-details-metric">
+                  <span>{t.projectedRoi}</span>
+                  <strong>
+                    {deal.projectedRoi !==
+                      undefined &&
+                    deal.projectedRoi !==
+                      null &&
+                    String(
+                      deal.projectedRoi
+                    ).trim() !== ""
+                      ? `${deal.projectedRoi}%`
+                      : t.notProvided}
+                  </strong>
+                </article>
+
+                <article className="deal-details-metric">
+                  <span>{t.roiPeriod}</span>
+                  <strong>
+                    {deal.roiPeriod
+                      ? localizePeriod(
+                          deal.roiPeriod,
+                          language
+                        )
+                      : t.notProvided}
+                  </strong>
+                </article>
+
+                <article className="deal-details-metric">
+                  <span>{t.payback}</span>
+                  <strong>
+                    {deal.paybackPeriod
+                      ? localizePeriod(
+                          deal.paybackPeriod,
+                          language
+                        )
+                      : t.notProvided}
+                  </strong>
+                </article>
+
+                <article className="deal-details-metric">
+                  <span>
+                    {t.implementationCost}
+                  </span>
+                  <strong>
+                    {deal.implementationCost !==
+                      undefined &&
+                    deal.implementationCost !==
+                      null &&
+                    String(
+                      deal.implementationCost
+                    ).trim() !== ""
+                      ? formatCurrency(
+                          deal.implementationCost,
+                          currency
+                        )
+                      : t.notProvided}
+                  </strong>
+                </article>
+
+                <article className="deal-details-metric">
+                  <span>
+                    {t.customerSavings}
+                  </span>
+                  <strong>
+                    {deal.expectedCustomerSavings !==
+                      undefined &&
+                    deal.expectedCustomerSavings !==
+                      null &&
+                    String(
+                      deal.expectedCustomerSavings
+                    ).trim() !== ""
+                      ? formatCurrency(
+                          deal.expectedCustomerSavings,
+                          currency
+                        )
+                      : t.notProvided}
+                  </strong>
+                </article>
+
+                <article className="deal-details-metric">
+                  <span>{t.annualValue}</span>
+                  <strong>
+                    {deal.expectedAnnualValue !==
+                      undefined &&
+                    deal.expectedAnnualValue !==
+                      null &&
+                    String(
+                      deal.expectedAnnualValue
+                    ).trim() !== ""
+                      ? formatCurrency(
+                          deal.expectedAnnualValue,
+                          currency
+                        )
+                      : t.notProvided}
+                  </strong>
+                </article>
+
+                <article className="deal-details-metric">
+                  <span>{t.billingModel}</span>
+                  <strong>
+                    {deal.billingModel ||
+                      t.notProvided}
+                  </strong>
+                </article>
+
+                <article className="deal-details-metric">
+                  <span>{t.revenueType}</span>
+                  <strong>
+                    {deal.revenueType ||
+                      t.notProvided}
+                  </strong>
+                </article>
+              </div>
+            </section>
+
+            <section className="deal-details-card">
+              <div className="deal-details-section-heading">
+                <div>
+                  <Target size={18} />
+                  <span>
+                    <strong>
+                      {t.problemTitle}
+                    </strong>
+                    <small>
+                      {language === "es"
+                        ? "Contexto comercial, solución propuesta y criterio de éxito."
+                        : "Commercial context, proposed solution, and success criteria."}
+                    </small>
+                  </span>
+                </div>
               </div>
 
-              <div className="deal-details-modal__form-grid">
-                <label>
-                  Expected close date
-                  <input
-                    type="date"
-                    value={dealForm.closeDate}
-                    onChange={(event) =>
-                      setDealForm({
-                        ...dealForm,
-                        closeDate: event.target.value,
-                      })
-                    }
-                  />
-                </label>
+              <div className="deal-details-business-grid">
+                <article>
+                  <span>{t.problemLabel}</span>
+                  <p>
+                    {deal.businessProblem ||
+                      t.notProvided}
+                  </p>
+                </article>
 
-                <label>
-                  Pipeline stage
-                  <select
-                    value={dealForm.stage}
-                    onChange={(event) =>
-                      handleStageChange(
-                        event.target.value
-                      )
-                    }
-                  >
-                    {pipelineStages.map((stage) => (
-                      <option
-                        value={stage}
+                <article>
+                  <span>{t.solutionLabel}</span>
+                  <p>
+                    {deal.solutionSummary ||
+                      t.notProvided}
+                  </p>
+                </article>
+
+                <article>
+                  <span>{t.successMetric}</span>
+                  <p>
+                    {deal.successMetric ||
+                      t.notProvided}
+                  </p>
+                </article>
+              </div>
+            </section>
+
+            <section className="deal-details-card">
+              <div className="deal-details-section-heading">
+                <div>
+                  <TrendingUp size={18} />
+                  <span>
+                    <strong>{t.timeline}</strong>
+                    <small>{t.timelineHint}</small>
+                  </span>
+                </div>
+              </div>
+
+              <div className="deal-details-timeline">
+                {pipelineStages.map(
+                  (stage, index) => {
+                    const isCurrent =
+                      stage === deal.stage;
+                    const isCompleted =
+                      stageIndex >= 0 &&
+                      index < stageIndex &&
+                      deal.stage !== "Lost";
+
+                    return (
+                      <div
+                        className={`deal-details-timeline__item ${
+                          isCurrent
+                            ? "deal-details-timeline__item--current"
+                            : ""
+                        } ${
+                          isCompleted
+                            ? "deal-details-timeline__item--completed"
+                            : ""
+                        }`}
                         key={stage}
                       >
-                        {stage}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                        <div className="deal-details-timeline__marker">
+                          {isCompleted ? (
+                            <CheckCircle2
+                              size={15}
+                            />
+                          ) : (
+                            <span />
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="deal-details-timeline__title">
+                            <strong>
+                              {
+                                stageLabels[
+                                  stage
+                                ][language]
+                              }
+                            </strong>
+
+                            {isCurrent && (
+                              <span>
+                                {t.current}
+                              </span>
+                            )}
+                          </div>
+
+                          <small>
+                            {
+                              stageProbabilities[
+                                stage
+                              ]
+                            }
+                            % {t.probability}
+                          </small>
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+            </section>
+          </main>
+
+          <aside className="deal-details-sidebar">
+            <section className="deal-details-card deal-details-ai-card">
+              <div className="deal-details-section-heading">
+                <div>
+                  <Sparkles size={18} />
+                  <span>
+                    <strong>{t.aiSummary}</strong>
+                    <small>{t.aiSummaryHint}</small>
+                  </span>
+                </div>
               </div>
 
-              <div className="deal-details-modal__form-grid">
-                <label>
-                  Deal owner
-                  <select
-                    value={dealForm.owner}
-                    onChange={(event) =>
-                      setDealForm({
-                        ...dealForm,
-                        owner: event.target.value,
-                      })
-                    }
-                  >
-                    {dealOwners.map((owner) => (
-                      <option
-                        value={owner}
-                        key={owner}
-                      >
-                        {owner}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              <p>{aiSummary}</p>
 
-                <label>
-                  Priority
-                  <select
-                    value={dealForm.priority}
-                    onChange={(event) =>
-                      setDealForm({
-                        ...dealForm,
-                        priority:
-                          event.target.value,
-                      })
-                    }
-                  >
-                    {dealPriorities.map(
-                      (priority) => (
-                        <option
-                          value={priority}
-                          key={priority}
-                        >
-                          {priority}
-                        </option>
-                      )
+              <button
+                type="button"
+                onClick={() =>
+                  setSummaryVersion(
+                    (current) =>
+                      current + 1
+                  )
+                }
+              >
+                <RefreshCw size={15} />
+                {t.refreshSummary}
+              </button>
+            </section>
+
+            <section className="deal-details-card">
+              <div className="deal-details-section-heading">
+                <div>
+                  <UserRound size={18} />
+                  <span>
+                    <strong>{t.customer}</strong>
+                    <small>
+                      {language === "es"
+                        ? "Personas y fechas clave de la oportunidad."
+                        : "Key people and dates for the opportunity."}
+                    </small>
+                  </span>
+                </div>
+              </div>
+
+              <div className="deal-details-info-list">
+                <div>
+                  <Building2 size={15} />
+                  <span>{t.company}</span>
+                  <strong>{deal.company}</strong>
+                </div>
+
+                <div>
+                  <UserRound size={15} />
+                  <span>{t.contact}</span>
+                  <strong>{deal.contact}</strong>
+                </div>
+
+                <div>
+                  <BriefcaseBusiness size={15} />
+                  <span>{t.owner}</span>
+                  <strong>
+                    {deal.owner ||
+                      t.notProvided}
+                  </strong>
+                </div>
+
+                <div>
+                  <CalendarDays size={15} />
+                  <span>
+                    {t.expectedCloseDate}
+                  </span>
+                  <strong>
+                    {formatDate(
+                      deal.closeDate
                     )}
-                  </select>
-                </label>
+                  </strong>
+                </div>
+
+                <div>
+                  <Clock3 size={15} />
+                  <span>
+                    {t.decisionDeadline}
+                  </span>
+                  <strong>
+                    {formatDate(
+                      deal.decisionDeadline
+                    )}
+                  </strong>
+                </div>
+              </div>
+            </section>
+
+            <section className="deal-details-card">
+              <div className="deal-details-section-heading">
+                <div>
+                  <ListChecks size={18} />
+                  <span>
+                    <strong>
+                      {t.taskProgress}
+                    </strong>
+                    <small>
+                      {completedTasks}/
+                      {tasks.length}{" "}
+                      {t.completed}
+                    </small>
+                  </span>
+                </div>
               </div>
 
-              <div className="deal-details-modal__preview">
-                <span>Expected revenue</span>
-
+              <div className="deal-details-progress">
+                <div>
+                  <span
+                    style={{
+                      width: `${taskCompletion}%`,
+                    }}
+                  />
+                </div>
                 <strong>
-                  {formatCurrency(
-                    Number(dealForm.value || 0) *
-                      (Number(
-                        dealForm.probability || 0
-                      ) /
-                        100)
-                  )}
+                  {taskCompletion}%
                 </strong>
               </div>
-
-              <div className="deal-details-modal__actions">
-                <button
-                  type="button"
-                  className="deal-details-modal__cancel"
-                  onClick={closeEditModal}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="deal-details-modal__save"
-                >
-                  <Save size={17} />
-                  Save changes
-                </button>
-              </div>
-            </form>
-          </div>
+            </section>
+          </aside>
         </div>
       )}
+
+      {activeTab === "activity" &&
+        renderEmptyState(
+          t.activityEmpty,
+          BarChart3
+        )}
+
+      {activeTab === "tasks" &&
+        renderEmptyState(
+          t.tasksEmpty,
+          ListChecks
+        )}
+
+      {activeTab === "notes" &&
+        renderEmptyState(
+          t.notesEmpty,
+          MessageSquareText
+        )}
+
+      {activeTab === "files" &&
+        renderEmptyState(
+          t.filesEmpty,
+          FileText
+        )}
+
+      {activeTab === "emails" && (
+        <div className="deal-details-card deal-details-tab-panel">
+          <div className="deal-details-section-heading">
+            <div>
+              <Mail size={18} />
+              <span>
+                <strong>{t.emails}</strong>
+                <small>{t.emailHint}</small>
+              </span>
+            </div>
+          </div>
+
+          {renderEmptyState(
+            t.emailEmpty,
+            Mail
+          )}
+        </div>
+      )}
+
+      <ConfirmDialog
+        isOpen={deleteOpen}
+        title={t.deleteTitle}
+        message={t.deleteMessage(deal.title)}
+        confirmLabel={t.deleteConfirm}
+        variant="danger"
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
