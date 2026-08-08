@@ -19,49 +19,9 @@ import {
   X,
 } from "lucide-react";
 import "./CompanyDetails.css";
+import { initialCompanies } from "../data/companies.js";
 
-const initialCompanies = [
-  {
-    id: 1,
-    name: "Bright Labs",
-    industry: "Software",
-    location: "Miami, United States",
-    employees: 120,
-    website: "https://brightlabs.com",
-    status: "Active",
-    pipelineValue: 12500,
-  },
-  {
-    id: 2,
-    name: "Northstar",
-    industry: "Technology",
-    location: "New York, United States",
-    employees: 85,
-    website: "https://northstar.io",
-    status: "Active",
-    pipelineValue: 8200,
-  },
-  {
-    id: 3,
-    name: "GreenTech",
-    industry: "Clean Energy",
-    location: "Bogotá, Colombia",
-    employees: 240,
-    website: "https://greentech.co",
-    status: "Prospect",
-    pipelineValue: 18500,
-  },
-  {
-    id: 4,
-    name: "Apex Systems",
-    industry: "Consulting",
-    location: "Chicago, United States",
-    employees: 430,
-    website: "https://apexsystems.com",
-    status: "Inactive",
-    pipelineValue: 0,
-  },
-];
+
 
 const emptyCompany = {
   name: "",

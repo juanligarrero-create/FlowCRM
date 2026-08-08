@@ -416,33 +416,129 @@ function Automations() {
       return;
     }
 
-    setAutomations((currentAutomations) =>
-      currentAutomations.map(
-        (automation) =>
-          automation.id === automationId
-            ? {
-                ...automation,
-                executions:
-                  Number(
-                    automation.executions || 0
-                  ) + 1,
-                successfulExecutions:
-                  Number(
-                    automation.successfulExecutions ||
-                      0
-                  ) + 1,
-                lastRun:
-                  new Date().toISOString(),
-              }
-            : automation
-      )
-    );
+    let executionCount = 1;
+    let resultMessage =
+      `${selectedAutomation.name} completed successfully.`;
+
+    if (
+      selectedAutomation.action === "Create task"
+    ) {
+      let deals = [];
+      let tasks = [];
+
+      try {
+        deals = JSON.parse(
+          localStorage.getItem("flowcrm-deals") ||
+            "[]"
+        );
+      } catch {
+        deals = [];
+      }
+
+      try {
+        tasks = JSON.parse(
+          localStorage.getItem("flowcrm-tasks") ||
+            "[]"
+        );
+      } catch {
+        tasks = [];
+      }
+
+      const qualifyingDeals = deals.filter(
+        (deal) =>
+          Number(deal.value || 0) > 10000 &&
+          !["Won", "Lost"].includes(deal.stage)
+      );
+
+      const existingAutomationDealIds = new Set(
+        tasks
+          .filter(
+            (task) =>
+              task.automationSource ===
+              selectedAutomation.id
+          )
+          .map((task) =>
+            String(task.dealId || "")
+          )
+      );
+
+      const newTasks = qualifyingDeals
+        .filter(
+          (deal) =>
+            !existingAutomationDealIds.has(
+              String(deal.id)
+            )
+        )
+        .map((deal, index) => ({
+          id: Date.now() + index,
+          title: `Follow up: ${deal.title}`,
+          description:
+            `Automated follow-up for the high-value deal "${deal.title}".`,
+          status: "To Do",
+          priority:
+            deal.priority || "High",
+          dueDate:
+            deal.closeDate ||
+            new Date().toISOString().slice(0, 10),
+          relatedType: deal.company
+            ? "Company"
+            : "None",
+          relatedId: "",
+          relatedName: deal.company || "",
+          dealId: deal.id,
+          dealTitle: deal.title,
+          contactName: deal.contact || "",
+          companyName: deal.company || "",
+          automationSource:
+            selectedAutomation.id,
+          createdAt: new Date().toISOString(),
+        }));
+
+      if (newTasks.length > 0) {
+        localStorage.setItem(
+          "flowcrm-tasks",
+          JSON.stringify([...tasks, ...newTasks])
+        );
+
+        executionCount = newTasks.length;
+        resultMessage =
+          `${newTasks.length} task${newTasks.length === 1 ? "" : "s"} created successfully.`;
+      } else {
+        executionCount = 0;
+        resultMessage =
+          "No new qualifying high-value deals needed a follow-up task.";
+      }
+    }
+
+    if (executionCount > 0) {
+      setAutomations((currentAutomations) =>
+        currentAutomations.map(
+          (automation) =>
+            automation.id === automationId
+              ? {
+                  ...automation,
+                  executions:
+                    Number(
+                      automation.executions || 0
+                    ) + executionCount,
+                  successfulExecutions:
+                    Number(
+                      automation.successfulExecutions ||
+                        0
+                    ) + executionCount,
+                  lastRun:
+                    new Date().toISOString(),
+                }
+              : automation
+        )
+      );
+    }
 
     setOpenMenuId(null);
 
     toast.success(
       "Automation executed",
-      `${selectedAutomation.name} completed successfully.`
+      resultMessage
     );
   };
 

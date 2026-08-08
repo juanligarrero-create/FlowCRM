@@ -695,7 +695,7 @@ function DealDetails() {
                   </strong>
                 </article>
 
-                <article className="deal-details-metric">
+                <article className="deal-details-metric deal-details-metric--kpi">
                   <span>{t.projectedRoi}</span>
                   <strong>
                     {deal.projectedRoi !==
@@ -710,7 +710,7 @@ function DealDetails() {
                   </strong>
                 </article>
 
-                <article className="deal-details-metric">
+                <article className="deal-details-metric deal-details-metric--kpi">
                   <span>{t.roiPeriod}</span>
                   <strong>
                     {deal.roiPeriod
@@ -722,7 +722,7 @@ function DealDetails() {
                   </strong>
                 </article>
 
-                <article className="deal-details-metric">
+                <article className="deal-details-metric deal-details-metric--kpi deal-details-metric--kpi-wide">
                   <span>{t.payback}</span>
                   <strong>
                     {deal.paybackPeriod

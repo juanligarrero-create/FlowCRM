@@ -849,3 +849,12 @@
     display: none;
   }
 }
+
+/* Dark mode: keep contact links readable */
+:root[data-theme="dark"] .contact-details__information-item a {
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] .contact-details__information-item a:hover {
+  color: #818cf8;
+}

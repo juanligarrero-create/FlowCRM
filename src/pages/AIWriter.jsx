@@ -16,6 +16,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -47,6 +48,7 @@ const STORAGE_KEYS = {
   favorites:
     "flowcrm-ai-writer-favorite-templates",
   language: "flowcrm-language",
+  context: "flowcrm-ai-writer-context",
 };
 
 const writerTypes = [
@@ -1696,6 +1698,53 @@ function AIWriter() {
 
   const [details, setDetails] =
     useState("");
+
+  useEffect(() => {
+    const handoffContext = readStoredObject(
+      STORAGE_KEYS.context
+    );
+
+    if (
+      !handoffContext ||
+      Object.keys(handoffContext).length === 0
+    ) {
+      return;
+    }
+
+    if (handoffContext.contactId) {
+      setSelectedContactId(
+        String(handoffContext.contactId)
+      );
+    }
+
+    if (handoffContext.companyId) {
+      setSelectedCompanyId(
+        String(handoffContext.companyId)
+      );
+    }
+
+    if (handoffContext.dealId) {
+      setSelectedDealId(
+        String(handoffContext.dealId)
+      );
+    }
+
+    if (
+      handoffContext.writerType &&
+      writerTypes.some(
+        (type) =>
+          type.id === handoffContext.writerType
+      )
+    ) {
+      setWriterType(handoffContext.writerType);
+    }
+
+    if (handoffContext.objective) {
+      setObjective(handoffContext.objective);
+    }
+
+    localStorage.removeItem(STORAGE_KEYS.context);
+  }, []);
 
   const [activeVariableField, setActiveVariableField] =
     useState("details");

@@ -19,6 +19,9 @@ import {
 import { useToast } from "../components/ToastProvider.jsx";
 import "./WhatsApp.css";
 
+const AI_WRITER_CONTEXT_KEY =
+  "flowcrm-ai-writer-context";
+
 const readStoredArray = (key) => {
   const savedData = localStorage.getItem(key);
 
@@ -221,6 +224,37 @@ function WhatsApp() {
 
   const [selectedContactId, setSelectedContactId] =
     useState(() => contacts[0]?.id ?? null);
+
+  useEffect(() => {
+    const savedContext = localStorage.getItem(
+      AI_WRITER_CONTEXT_KEY
+    );
+
+    if (!savedContext) {
+      return;
+    }
+
+    try {
+      const handoffContext = JSON.parse(savedContext);
+
+      if (handoffContext?.contactId) {
+        const matchingContact = contacts.find(
+          (contact) =>
+            String(contact.id) ===
+            String(handoffContext.contactId)
+        );
+
+        if (matchingContact) {
+          setSelectedContactId(matchingContact.id);
+          setShowMobileChat(true);
+        }
+      }
+    } catch {
+      // Ignore malformed handoff context.
+    }
+
+    localStorage.removeItem(AI_WRITER_CONTEXT_KEY);
+  }, [contacts]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [messageText, setMessageText] = useState("");

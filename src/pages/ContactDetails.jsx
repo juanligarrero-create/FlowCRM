@@ -8,197 +8,165 @@ import {
   Circle,
   Clock3,
   Edit3,
-  ExternalLink,
-  Globe2,
-  MapPin,
+  Mail,
+  MessageCircle,
+  Phone,
   Plus,
   Save,
   StickyNote,
   Trash2,
-  Users,
+  UserRound,
   X,
 } from "lucide-react";
-import "./CompanyDetails.css";
+import "./ContactDetails.css";
 
-const initialCompanies = [
+const initialContacts = [
   {
     id: 1,
-    name: "Bright Labs",
-    industry: "Software",
-    location: "Miami, United States",
-    employees: 120,
-    website: "https://brightlabs.com",
-    status: "Active",
-    pipelineValue: 12500,
+    name: "Sarah Johnson",
+    email: "sarah@brightlabs.com",
+    company: "Bright Labs",
+    phone: "+1 305 555 0148",
+    status: "Lead",
   },
   {
     id: 2,
-    name: "Northstar",
-    industry: "Technology",
-    location: "New York, United States",
-    employees: 85,
-    website: "https://northstar.io",
-    status: "Active",
-    pipelineValue: 8200,
+    name: "James Miller",
+    email: "james@northstar.io",
+    company: "Northstar",
+    phone: "+1 212 555 0182",
+    status: "Customer",
   },
   {
     id: 3,
-    name: "GreenTech",
-    industry: "Clean Energy",
-    location: "Bogotá, Colombia",
-    employees: 240,
-    website: "https://greentech.co",
+    name: "Anna Lopez",
+    email: "anna@greentech.co",
+    company: "GreenTech",
+    phone: "+57 310 555 0194",
     status: "Prospect",
-    pipelineValue: 18500,
   },
   {
     id: 4,
-    name: "Apex Systems",
-    industry: "Consulting",
-    location: "Chicago, United States",
-    employees: 430,
-    website: "https://apexsystems.com",
-    status: "Inactive",
-    pipelineValue: 0,
+    name: "Michael Chen",
+    email: "michael@apexsystems.com",
+    company: "Apex Systems",
+    phone: "+1 415 555 0167",
+    status: "Customer",
   },
 ];
 
-const emptyCompany = {
+const emptyContact = {
   name: "",
-  industry: "",
-  location: "",
-  employees: "",
-  website: "",
-  status: "Active",
+  email: "",
+  company: "",
+  phone: "",
+  status: "Lead",
 };
 
-function CompanyDetails() {
+const readStoredArray = (key, fallback = []) => {
+  const saved = localStorage.getItem(key);
+  if (!saved) return fallback;
+
+  try {
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+function ContactDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const companyId = Number(id);
+  const contactId = Number(id);
 
-  const [companies, setCompanies] = useState(() => {
-    const saved = localStorage.getItem("flowcrm-companies");
+  const [contacts, setContacts] = useState(() =>
+    readStoredArray("flowcrm-contacts", initialContacts)
+  );
+  const [notes, setNotes] = useState(() =>
+    readStoredArray(`flowcrm-contact-${contactId}-notes`)
+  );
+  const [newNote, setNewNote] = useState("");
+  const [editingContact, setEditingContact] = useState(false);
+  const [contactForm, setContactForm] = useState({ ...emptyContact });
+  const [formError, setFormError] = useState("");
 
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return initialCompanies;
-      }
-    }
-
-    return initialCompanies;
-  });
-
-  const company = useMemo(
-    () =>
-      companies.find(
-        (item) => Number(item.id) === companyId
-      ),
-    [companies, companyId]
+  const contact = useMemo(
+    () => contacts.find((item) => Number(item.id) === contactId),
+    [contacts, contactId]
   );
 
-  const relatedContacts = useMemo(() => {
-    const savedContacts =
-      localStorage.getItem("flowcrm-contacts");
+  const companies = useMemo(
+    () => readStoredArray("flowcrm-companies"),
+    []
+  );
 
-    if (!savedContacts || !company) {
-      return [];
-    }
+  const relatedCompany = useMemo(
+    () =>
+      companies.find(
+        (company) =>
+          company.name?.trim().toLowerCase() ===
+          contact?.company?.trim().toLowerCase()
+      ),
+    [companies, contact]
+  );
 
-    try {
-      return JSON.parse(savedContacts).filter(
-        (contact) =>
-          contact.company === company.name
-      );
-    } catch {
-      return [];
-    }
-  }, [company]);
-
-  const relatedTasks = useMemo(() => {
-    const savedTasks =
-      localStorage.getItem("flowcrm-tasks");
-
-    if (!savedTasks) {
-      return [];
-    }
-
-    try {
-      return JSON.parse(savedTasks).filter(
+  const relatedTasks = useMemo(
+    () =>
+      readStoredArray("flowcrm-tasks").filter(
         (task) =>
-          task.relatedType === "Company" &&
-          String(task.relatedId) ===
-            String(companyId)
-      );
-    } catch {
-      return [];
-    }
-  }, [companyId]);
+          task.relatedType === "Contact" &&
+          String(task.relatedId) === String(contactId)
+      ),
+    [contactId]
+  );
+
+  const relatedDeals = useMemo(() => {
+    if (!contact) return [];
+
+    return readStoredArray("flowcrm-deals").filter(
+      (deal) =>
+        deal.contact?.trim().toLowerCase() ===
+        contact.name?.trim().toLowerCase()
+    );
+  }, [contact]);
 
   const openTasks = relatedTasks.filter(
     (task) => task.status !== "Completed"
   );
-
   const completedTasks = relatedTasks.filter(
     (task) => task.status === "Completed"
   );
+  const openDeals = relatedDeals.filter((deal) => deal.stage !== "Won");
+  const wonDeals = relatedDeals.filter((deal) => deal.stage === "Won");
 
-  const [notes, setNotes] = useState(() => {
-    const saved = localStorage.getItem(
-      `flowcrm-company-${companyId}-notes`
-    );
-
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return [];
-      }
-    }
-
-    return [];
-  });
-
-  const [newNote, setNewNote] = useState("");
-
-  const [editingCompany, setEditingCompany] =
-    useState(false);
-
-  const [companyForm, setCompanyForm] =
-    useState(emptyCompany);
+  useEffect(() => {
+    localStorage.setItem("flowcrm-contacts", JSON.stringify(contacts));
+  }, [contacts]);
 
   useEffect(() => {
     localStorage.setItem(
-      "flowcrm-companies",
-      JSON.stringify(companies)
-    );
-  }, [companies]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      `flowcrm-company-${companyId}-notes`,
+      `flowcrm-contact-${contactId}-notes`,
       JSON.stringify(notes)
     );
-  }, [notes, companyId]);
+  }, [notes, contactId]);
 
   useEffect(() => {
-    if (company) {
-      setCompanyForm({
-        name: company.name,
-        industry: company.industry,
-        location: company.location,
-        employees: company.employees,
-        website: company.website,
-        status: company.status,
-      });
-    }
-  }, [company]);
+    if (!contact) return;
 
-  const getInitials = (name) =>
+    setContactForm({
+      name: contact.name || "",
+      email: contact.email || "",
+      company: contact.company || "",
+      phone: contact.phone || "",
+      status: contact.status || "Lead",
+    });
+  }, [contact]);
+
+  const getInitials = (name = "") =>
     name
-      ?.split(" ")
+      .split(" ")
+      .filter(Boolean)
       .map((word) => word[0])
       .join("")
       .substring(0, 2)
@@ -207,132 +175,72 @@ function CompanyDetails() {
   const formatDate = (date) => {
     if (!date) return "No due date";
 
-    return new Date(
-      `${date}T00:00:00`
-    ).toLocaleDateString("en-US", {
+    return new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
   };
 
-  const getTaskIcon = (status) => {
-    if (status === "Completed")
-      return <CheckCircle2 size={18} />;
-
-    if (status === "In Progress")
-      return <Clock3 size={18} />;
-
-    return <Circle size={18} />;
-  };
-  const relatedDeals = useMemo(() => {
-    const savedDeals = localStorage.getItem("flowcrm-deals");
-
-    if (!savedDeals || !company) {
-      return [];
-    }
-
+  const formatCurrency = (value, currency = "USD") => {
     try {
-      return JSON.parse(savedDeals).filter(
-        (deal) =>
-          deal.company?.toLowerCase() ===
-          company.name.toLowerCase()
-      );
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
+      }).format(Number(value || 0));
     } catch {
-      return [];
+      return `$${Number(value || 0).toLocaleString()}`;
     }
-  }, [company]);
-
-  const totalPipelineValue = relatedDeals.reduce(
-    (total, deal) => total + Number(deal.value || 0),
-    0
-  );
-
-  const formatCurrency = (value) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(Number(value || 0));
-
-  const handleAddNote = (event) => {
-    event.preventDefault();
-
-    const trimmedNote = newNote.trim();
-
-    if (!trimmedNote) {
-      return;
-    }
-
-    const noteToAdd = {
-      id: Date.now(),
-      content: trimmedNote,
-      createdAt: new Date().toLocaleString(),
-    };
-
-    setNotes((currentNotes) => [
-      noteToAdd,
-      ...currentNotes,
-    ]);
-
-    setNewNote("");
   };
 
-  const handleDeleteNote = (noteId) => {
-    setNotes((currentNotes) =>
-      currentNotes.filter(
-        (note) => note.id !== noteId
-      )
-    );
+  const getTaskIcon = (status) => {
+    if (status === "Completed") return <CheckCircle2 size={18} />;
+    if (status === "In Progress") return <Clock3 size={18} />;
+    return <Circle size={18} />;
   };
 
   const openEditModal = () => {
-    if (!company) {
-      return;
-    }
-
-    setCompanyForm({
-      name: company.name,
-      industry: company.industry,
-      location: company.location,
-      employees: company.employees,
-      website: company.website,
-      status: company.status,
+    if (!contact) return;
+    setContactForm({
+      name: contact.name || "",
+      email: contact.email || "",
+      company: contact.company || "",
+      phone: contact.phone || "",
+      status: contact.status || "Lead",
     });
-
-    setEditingCompany(true);
+    setFormError("");
+    setEditingContact(true);
   };
 
   const closeEditModal = () => {
-    setEditingCompany(false);
+    setEditingContact(false);
+    setFormError("");
   };
 
-  const handleSaveCompany = (event) => {
+  const saveContact = (event) => {
     event.preventDefault();
 
     if (
-      !companyForm.name.trim() ||
-      !companyForm.industry.trim() ||
-      !companyForm.location.trim() ||
-      !String(companyForm.employees).trim() ||
-      !companyForm.website.trim()
+      !contactForm.name.trim() ||
+      !contactForm.email.trim() ||
+      !contactForm.company.trim() ||
+      !contactForm.phone.trim()
     ) {
+      setFormError("Please complete all contact fields.");
       return;
     }
 
-    const normalizedWebsite =
-      companyForm.website.startsWith("http")
-        ? companyForm.website
-        : `https://${companyForm.website}`;
-
-    setCompanies((currentCompanies) =>
-      currentCompanies.map((item) =>
-        Number(item.id) === companyId
+    setContacts((currentContacts) =>
+      currentContacts.map((item) =>
+        Number(item.id) === contactId
           ? {
               ...item,
-              ...companyForm,
-              employees: Number(companyForm.employees),
-              website: normalizedWebsite,
+              name: contactForm.name.trim(),
+              email: contactForm.email.trim(),
+              company: contactForm.company.trim(),
+              phone: contactForm.phone.trim(),
+              status: contactForm.status,
             }
           : item
       )
@@ -341,33 +249,60 @@ function CompanyDetails() {
     closeEditModal();
   };
 
-  if (!company) {
+  const addNote = (event) => {
+    event.preventDefault();
+    const text = newNote.trim();
+    if (!text) return;
+
+    setNotes((currentNotes) => [
+      {
+        id: Date.now(),
+        text,
+        createdAt: new Date().toISOString(),
+      },
+      ...currentNotes,
+    ]);
+    setNewNote("");
+  };
+
+  const removeNote = (noteId) => {
+    setNotes((currentNotes) =>
+      currentNotes.filter((note) => note.id !== noteId)
+    );
+  };
+
+  const callContact = () => {
+    if (contact?.phone) window.location.href = `tel:${contact.phone}`;
+  };
+
+  const emailContact = () => {
+    if (contact?.email) window.location.href = `mailto:${contact.email}`;
+  };
+
+  const messageContact = () => {
+    navigate("/whatsapp");
+  };
+
+  if (!contact) {
     return (
-      <div className="company-details-page">
+      <div className="contact-details-page">
         <button
           type="button"
-          className="company-details__back"
-          onClick={() => navigate("/companies")}
+          className="contact-details__back"
+          onClick={() => navigate("/contacts")}
         >
           <ArrowLeft size={18} />
-          Back to companies
+          Back to contacts
         </button>
 
-        <section className="company-details__not-found">
-          <Building2 size={44} />
-
-          <h1>Company not found</h1>
-
+        <section className="contact-details__not-found">
+          <UserRound size={44} />
+          <h1>Contact not found</h1>
           <p>
-            This company may have been deleted or the address is
-            incorrect.
+            This contact may have been deleted or the address is incorrect.
           </p>
-
-          <button
-            type="button"
-            onClick={() => navigate("/companies")}
-          >
-            Return to companies
+          <button type="button" onClick={() => navigate("/contacts")}>
+            Return to contacts
           </button>
         </section>
       </div>
@@ -375,120 +310,146 @@ function CompanyDetails() {
   }
 
   return (
-    <div className="company-details-page">
+    <div className="contact-details-page">
       <button
         type="button"
-        className="company-details__back"
-        onClick={() => navigate("/companies")}
+        className="contact-details__back"
+        onClick={() => navigate("/contacts")}
       >
         <ArrowLeft size={18} />
-        Back to companies
+        Back to contacts
       </button>
 
-      <section className="company-details__hero">
-        <div className="company-details__identity">
-          <div className="company-details__avatar">
-            {getInitials(company.name)}
+      <section className="contact-details__hero">
+        <div className="contact-details__identity">
+          <div className="contact-details__avatar">
+            {getInitials(contact.name)}
           </div>
 
           <div>
-            <div className="company-details__title-row">
-              <h1>{company.name}</h1>
-
+            <div className="contact-details__name-row">
+              <h1>{contact.name}</h1>
               <span
-                className={`company-details__status company-details__status--${company.status.toLowerCase()}`}
+                className={`contact-details__status contact-details__status--${contact.status.toLowerCase()}`}
               >
-                {company.status}
+                {contact.status}
               </span>
             </div>
-
-            <p>
-              {company.industry} · {company.location}
-            </p>
+            <p>{contact.company}</p>
           </div>
         </div>
 
-        <div className="company-details__hero-actions">
-          <button
-            type="button"
-            className="company-details__edit"
-            onClick={openEditModal}
-          >
-            <Edit3 size={17} />
-            Edit company
-          </button>
-
-          <a
-            href={company.website}
-            target="_blank"
-            rel="noreferrer"
-            className="company-details__website"
-          >
-            <ExternalLink size={17} />
-            Visit website
-          </a>
-        </div>
+        <button
+          type="button"
+          className="contact-details__edit-button"
+          onClick={openEditModal}
+        >
+          <Edit3 size={17} />
+          Edit contact
+        </button>
       </section>
 
-      <section className="company-details__stats">
-        <article>
-          <Users size={20} />
-
-          <div>
-            <span>Related contacts</span>
-            <strong>{relatedContacts.length}</strong>
-          </div>
-        </article>
-
-        <article>
-          <CalendarDays size={20} />
-
-          <div>
-            <span>Open tasks</span>
-            <strong>{openTasks.length}</strong>
-          </div>
-        </article>
-
-        <article>
-          <CheckCircle2 size={20} />
-
-          <div>
-            <span>Completed tasks</span>
-            <strong>{completedTasks.length}</strong>
-          </div>
-        </article>
-
-        <article>
-          <Building2 size={20} />
-
-          <div>
-            <span>Pipeline value</span>
-            <strong>
-              {formatCurrency(
-                totalPipelineValue ||
-                  company.pipelineValue
-              )}
-            </strong>
-          </div>
-        </article>
+      <section className="contact-details__quick-actions">
+        <button type="button" onClick={emailContact}>
+          <Mail size={18} />
+          Email
+        </button>
+        <button type="button" onClick={callContact}>
+          <Phone size={18} />
+          Call
+        </button>
+        <button type="button" onClick={messageContact}>
+          <MessageCircle size={18} />
+          WhatsApp
+        </button>
+        <button type="button" onClick={() => navigate("/tasks")}>
+          <Plus size={18} />
+          Add task
+        </button>
       </section>
 
-      <div className="company-details__layout">
-        <main className="company-details__main">
-          <section className="company-details__panel">
-            <div className="company-details__panel-header">
+      <div className="contact-details__grid">
+        <main className="contact-details__main">
+          <section className="contact-details__panel">
+            <div className="contact-details__panel-header">
               <div>
-                <h2>Related tasks</h2>
+                <h2>Contact information</h2>
+                <p>Primary details and organization.</p>
+              </div>
+            </div>
 
-                <p>
-                  Follow-ups and activities connected to this
-                  company.
-                </p>
+            <div className="contact-details__information-grid">
+              <div className="contact-details__information-item">
+                <div className="contact-details__information-icon">
+                  <Mail size={18} />
+                </div>
+                <div>
+                  <span>Email</span>
+                  <a href={`mailto:${contact.email}`}>{contact.email}</a>
+                </div>
               </div>
 
+              <div className="contact-details__information-item">
+                <div className="contact-details__information-icon">
+                  <Phone size={18} />
+                </div>
+                <div>
+                  <span>Phone</span>
+                  <a href={`tel:${contact.phone}`}>{contact.phone}</a>
+                </div>
+              </div>
+
+              <div className="contact-details__information-item">
+                <div className="contact-details__information-icon">
+                  <Building2 size={18} />
+                </div>
+                <div>
+                  <span>Company</span>
+                  {relatedCompany ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/companies/${relatedCompany.id}`)
+                      }
+                      style={{
+                        border: 0,
+                        padding: 0,
+                        background: "transparent",
+                        color: "inherit",
+                        font: "inherit",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {contact.company}
+                    </button>
+                  ) : (
+                    <strong>{contact.company}</strong>
+                  )}
+                </div>
+              </div>
+
+              <div className="contact-details__information-item">
+                <div className="contact-details__information-icon">
+                  <UserRound size={18} />
+                </div>
+                <div>
+                  <span>Lifecycle</span>
+                  <strong>{contact.status}</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="contact-details__panel">
+            <div className="contact-details__panel-header">
+              <div>
+                <h2>Related tasks</h2>
+                <p>Follow-ups and activities connected to this contact.</p>
+              </div>
               <button
                 type="button"
-                className="company-details__tasks-button"
+                className="contact-details__tasks-button"
                 onClick={() => navigate("/tasks")}
               >
                 View all tasks
@@ -496,44 +457,37 @@ function CompanyDetails() {
             </div>
 
             {relatedTasks.length === 0 ? (
-              <div className="company-details__tasks-empty">
+              <div className="contact-details__tasks-empty">
                 <CalendarDays size={28} />
-                <p>No tasks related to this company.</p>
+                <p>No tasks related to this contact.</p>
               </div>
             ) : (
-              <div className="company-details__tasks-list">
+              <div className="contact-details__tasks-list">
                 {relatedTasks.map((task) => (
-                  <article
-                    className="company-details__task"
-                    key={task.id}
-                  >
+                  <article className="contact-details__task" key={task.id}>
                     <div
-                      className={`company-details__task-icon company-details__task-icon--${task.status
+                      className={`contact-details__task-icon contact-details__task-icon--${task.status
                         .toLowerCase()
                         .replaceAll(" ", "-")}`}
                     >
                       {getTaskIcon(task.status)}
                     </div>
-
-                    <div className="company-details__task-content">
+                    <div className="contact-details__task-content">
                       <h3>{task.title}</h3>
                       <p>{task.description}</p>
-
                       <div>
                         <span
-                          className={`company-details__task-priority company-details__task-priority--${task.priority.toLowerCase()}`}
+                          className={`contact-details__task-priority contact-details__task-priority--${task.priority.toLowerCase()}`}
                         >
                           {task.priority}
                         </span>
-
                         <span>
                           <CalendarDays size={13} />
                           {formatDate(task.dueDate)}
                         </span>
                       </div>
                     </div>
-
-                    <span className="company-details__task-status">
+                    <span className="contact-details__task-status">
                       {task.status}
                     </span>
                   </article>
@@ -542,352 +496,223 @@ function CompanyDetails() {
             )}
           </section>
 
-          <section className="company-details__panel">
-            <div className="company-details__panel-header">
+          <section className="contact-details__panel">
+            <div className="contact-details__panel-header">
               <div>
-                <h2>Contacts</h2>
-                <p>
-                  People associated with this organization.
-                </p>
+                <h2>Activity</h2>
+                <p>Recent CRM activity for this contact.</p>
               </div>
-
-              <span>{relatedContacts.length}</span>
             </div>
 
-            {relatedContacts.length === 0 ? (
-              <div className="company-details__empty">
-                <Users size={28} />
-                <p>No related contacts yet.</p>
-              </div>
-            ) : (
-              <div className="company-details__contacts">
-                {relatedContacts.map((contact) => (
-                  <button
-                    type="button"
-                    key={contact.id}
-                    onClick={() =>
-                      navigate(`/contacts/${contact.id}`)
-                    }
-                  >
-                    <div className="company-details__contact-avatar">
-                      {getInitials(contact.name)}
-                    </div>
-
-                    <div>
-                      <strong>{contact.name}</strong>
-                      <span>{contact.email}</span>
-                    </div>
-
-                    <span
-                      className={`company-details__contact-status company-details__contact-status--${contact.status.toLowerCase()}`}
-                    >
-                      {contact.status}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="company-details__panel">
-            <div className="company-details__panel-header">
-              <div>
-                <h2>Deals</h2>
-                <p>
-                  Sales opportunities connected to this company.
-                </p>
-              </div>
-
-              <span>{relatedDeals.length}</span>
-            </div>
-
-            {relatedDeals.length === 0 ? (
-              <div className="company-details__empty">
-                <Building2 size={28} />
-                <p>No related deals yet.</p>
-              </div>
-            ) : (
-              <div className="company-details__deals">
-                {relatedDeals.map((deal) => (
-                  <article key={deal.id}>
+            <div className="contact-details__timeline">
+              {relatedDeals.slice(0, 3).map((deal) => (
+                <div className="contact-details__timeline-item" key={deal.id}>
+                  <div className="contact-details__timeline-marker">
+                    <Building2 size={16} />
+                  </div>
+                  <div className="contact-details__timeline-content">
                     <div>
                       <h3>{deal.title}</h3>
-                      <p>
-                        {deal.contact || company.name}
-                      </p>
-                    </div>
-
-                    <div className="company-details__deal-meta">
-                      <strong>
-                        {formatCurrency(deal.value)}
-                      </strong>
-
                       <span>{deal.stage}</span>
-
-                      <small>
-                        <CalendarDays size={13} />
-                        {formatDate(deal.closeDate)}
-                      </small>
                     </div>
-                  </article>
-                ))}
-              </div>
-            )}
+                    <p>
+                      Deal value {formatCurrency(deal.value, deal.currency)} · Expected close {formatDate(deal.closeDate)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+
+              {relatedTasks.slice(0, 3).map((task) => (
+                <div
+                  className="contact-details__timeline-item"
+                  key={`task-${task.id}`}
+                >
+                  <div className="contact-details__timeline-marker">
+                    <CalendarDays size={16} />
+                  </div>
+                  <div className="contact-details__timeline-content">
+                    <div>
+                      <h3>{task.title}</h3>
+                      <span>{task.status}</span>
+                    </div>
+                    <p>{task.description}</p>
+                  </div>
+                </div>
+              ))}
+
+              {relatedDeals.length === 0 && relatedTasks.length === 0 && (
+                <div className="contact-details__tasks-empty">
+                  <Clock3 size={28} />
+                  <p>No activity recorded yet.</p>
+                </div>
+              )}
+            </div>
           </section>
         </main>
 
-        <aside className="company-details__sidebar">
-          <section className="company-details__panel">
-            <div className="company-details__panel-header">
-              <div>
-                <h2>Company information</h2>
-                <p>Primary organization details.</p>
-              </div>
-            </div>
-
-            <div className="company-details__information">
-              <div>
-                <Globe2 size={18} />
-
-                <span>
-                  <small>Website</small>
-
-                  <a
-                    href={company.website}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {company.website.replace(
-                      /^https?:\/\//,
-                      ""
-                    )}
-                  </a>
-                </span>
-              </div>
-
-              <div>
-                <Building2 size={18} />
-
-                <span>
-                  <small>Industry</small>
-                  <strong>{company.industry}</strong>
-                </span>
-              </div>
-
-              <div>
-                <Users size={18} />
-
-                <span>
-                  <small>Employees</small>
-
-                  <strong>
-                    {Number(
-                      company.employees
-                    ).toLocaleString()}
-                  </strong>
-                </span>
-              </div>
-
-              <div>
-                <MapPin size={18} />
-
-                <span>
-                  <small>Location</small>
-                  <strong>{company.location}</strong>
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <section className="company-details__panel">
-            <div className="company-details__panel-header">
+        <aside className="contact-details__sidebar">
+          <section className="contact-details__panel">
+            <div className="contact-details__panel-header">
               <div>
                 <h2>Notes</h2>
-
-                <p>
-                  Important information about this company.
-                </p>
+                <p>Keep context close to the contact.</p>
               </div>
             </div>
 
-            <form
-              className="company-details__note-form"
-              onSubmit={handleAddNote}
-            >
+            <form className="contact-details__note-form" onSubmit={addNote}>
               <textarea
-                placeholder="Write a note about this company..."
                 value={newNote}
-                onChange={(event) =>
-                  setNewNote(event.target.value)
-                }
+                onChange={(event) => setNewNote(event.target.value)}
+                placeholder="Add a note about this contact..."
               />
-
               <button type="submit">
-                <Plus size={17} />
+                <Plus size={16} />
                 Add note
               </button>
             </form>
 
-            <div className="company-details__notes-list">
+            <div className="contact-details__notes-list">
               {notes.length === 0 ? (
-                <div className="company-details__notes-empty">
-                  <StickyNote size={25} />
-                  <p>No notes yet.</p>
+                <div className="contact-details__empty-notes">
+                  <StickyNote size={26} />
+                  <p>No notes yet</p>
+                  <span>Add useful context, call notes, or next steps.</span>
                 </div>
               ) : (
                 notes.map((note) => (
-                  <article
-                    className="company-details__note"
-                    key={note.id}
-                  >
-                    <div>
-                      <span>{note.createdAt}</span>
-
+                  <article className="contact-details__note" key={note.id}>
+                    <div className="contact-details__note-header">
+                      <span>
+                        {new Date(note.createdAt).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </span>
                       <button
                         type="button"
                         aria-label="Delete note"
-                        onClick={() =>
-                          handleDeleteNote(note.id)
-                        }
+                        onClick={() => removeNote(note.id)}
                       >
                         <Trash2 size={15} />
                       </button>
                     </div>
-
-                    <p>{note.content}</p>
+                    <p>{note.text}</p>
                   </article>
                 ))
               )}
             </div>
           </section>
 
-          <section className="company-details__panel">
-            <div className="company-details__panel-header">
+          <section className="contact-details__panel">
+            <div className="contact-details__panel-header">
               <div>
                 <h2>CRM summary</h2>
-                <p>Current company relationship.</p>
+                <p>Current relationship snapshot.</p>
               </div>
             </div>
 
-            <div className="company-details__summary">
-              <div>
-                <span>Contacts</span>
-                <strong>{relatedContacts.length}</strong>
-              </div>
-
+            <div className="contact-details__summary">
               <div>
                 <span>Open tasks</span>
                 <strong>{openTasks.length}</strong>
               </div>
-
               <div>
                 <span>Completed</span>
                 <strong>{completedTasks.length}</strong>
               </div>
-
               <div>
-                <span>Notes</span>
-                <strong>{notes.length}</strong>
+                <span>Open deals</span>
+                <strong>{openDeals.length}</strong>
+              </div>
+              <div>
+                <span>Won deals</span>
+                <strong>{wonDeals.length}</strong>
               </div>
             </div>
           </section>
         </aside>
       </div>
 
-      {editingCompany && (
-        <div className="company-details-modal">
+      {editingContact && (
+        <div className="contact-details-modal">
           <div
-            className="company-details-modal__overlay"
+            className="contact-details-modal__overlay"
             onClick={closeEditModal}
           />
-
-          <div className="company-details-modal__content">
-            <div className="company-details-modal__header">
+          <div className="contact-details-modal__content">
+            <div className="contact-details-modal__header">
               <div>
-                <h2>Edit company</h2>
-                <p>Update the organization information.</p>
+                <h2>Edit contact</h2>
+                <p>Update this contact&apos;s CRM information.</p>
               </div>
-
               <button
                 type="button"
+                aria-label="Close edit contact"
                 onClick={closeEditModal}
-                aria-label="Close edit company modal"
               >
-                <X size={21} />
+                <X size={20} />
               </button>
             </div>
 
-            <form
-              className="company-details-modal__form"
-              onSubmit={handleSaveCompany}
-            >
+            <form className="contact-details-modal__form" onSubmit={saveContact}>
+              {formError && (
+                <p className="contact-details-modal__error">{formError}</p>
+              )}
+
               <label>
-                Company name
+                Name
                 <input
                   type="text"
-                  value={companyForm.name}
+                  value={contactForm.name}
                   onChange={(event) =>
-                    setCompanyForm({
-                      ...companyForm,
+                    setContactForm((current) => ({
+                      ...current,
                       name: event.target.value,
-                    })
+                    }))
                   }
                 />
               </label>
 
               <label>
-                Industry
+                Email
+                <input
+                  type="email"
+                  value={contactForm.email}
+                  onChange={(event) =>
+                    setContactForm((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+
+              <label>
+                Company
                 <input
                   type="text"
-                  value={companyForm.industry}
+                  value={contactForm.company}
                   onChange={(event) =>
-                    setCompanyForm({
-                      ...companyForm,
-                      industry: event.target.value,
-                    })
+                    setContactForm((current) => ({
+                      ...current,
+                      company: event.target.value,
+                    }))
                   }
                 />
               </label>
 
               <label>
-                Location
+                Phone
                 <input
                   type="text"
-                  value={companyForm.location}
+                  value={contactForm.phone}
                   onChange={(event) =>
-                    setCompanyForm({
-                      ...companyForm,
-                      location: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                Employees
-                <input
-                  type="number"
-                  min="0"
-                  value={companyForm.employees}
-                  onChange={(event) =>
-                    setCompanyForm({
-                      ...companyForm,
-                      employees: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                Website
-                <input
-                  type="text"
-                  value={companyForm.website}
-                  onChange={(event) =>
-                    setCompanyForm({
-                      ...companyForm,
-                      website: event.target.value,
-                    })
+                    setContactForm((current) => ({
+                      ...current,
+                      phone: event.target.value,
+                    }))
                   }
                 />
               </label>
@@ -895,36 +720,33 @@ function CompanyDetails() {
               <label>
                 Status
                 <select
-                  value={companyForm.status}
+                  value={contactForm.status}
                   onChange={(event) =>
-                    setCompanyForm({
-                      ...companyForm,
+                    setContactForm((current) => ({
+                      ...current,
                       status: event.target.value,
-                    })
+                    }))
                   }
                 >
-                  <option value="Active">Active</option>
+                  <option value="Lead">Lead</option>
                   <option value="Prospect">Prospect</option>
-                  <option value="Inactive">
-                    Inactive
-                  </option>
+                  <option value="Customer">Customer</option>
                 </select>
               </label>
 
-              <div className="company-details-modal__actions">
+              <div className="contact-details-modal__actions">
                 <button
                   type="button"
-                  className="company-details-modal__cancel"
+                  className="contact-details-modal__cancel"
                   onClick={closeEditModal}
                 >
                   Cancel
                 </button>
-
                 <button
                   type="submit"
-                  className="company-details-modal__save"
+                  className="contact-details-modal__save"
                 >
-                  <Save size={17} />
+                  <Save size={16} />
                   Save changes
                 </button>
               </div>
@@ -936,4 +758,4 @@ function CompanyDetails() {
   );
 }
 
-export default CompanyDetails;
+export default ContactDetails;

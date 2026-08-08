@@ -474,6 +474,21 @@ function FollowUps() {
       dealId: item.dealId,
       contactId: item.contactId,
       companyId: item.companyId,
+      relatedType: item.contactId
+        ? "Contact"
+        : item.companyId
+          ? "Company"
+          : "None",
+      relatedId: item.contactId
+        ? String(item.contactId)
+        : item.companyId
+          ? String(item.companyId)
+          : "",
+      relatedName: item.contactId
+        ? item.contactName
+        : item.companyId
+          ? item.companyName
+          : "",
       createdAt: new Date().toISOString(),
     };
 
