@@ -1,26 +1,22 @@
 import {
   AlertCircle,
-  Bell,
   Building2,
   CalendarDays,
-  Check,
-  CheckCheck,
-  CheckCircle2,
   CircleDollarSign,
   Clock3,
   Target,
   Trophy,
   UserRound,
-  X,
 } from "lucide-react";
 import {
+  createContext,
+  useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import { useNavigate } from "react-router-dom";
-import "../styles/notifications.css";
+
+const NotificationsContext = createContext(null);
 
 const readStoredArray = (key) => {
   const savedData = localStorage.getItem(key);
@@ -80,12 +76,7 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 0,
   }).format(Number(value || 0));
 
-function NotificationCenter() {
-  const navigate = useNavigate();
-  const containerRef = useRef(null);
-
-  const [isOpen, setIsOpen] = useState(false);
-
+export function NotificationsProvider({ children }) {
   const [readNotificationIds, setReadNotificationIds] =
     useState(() => {
       const savedIds = localStorage.getItem(
@@ -272,7 +263,8 @@ function NotificationCenter() {
           description: deal.title,
           detail: formatCurrency(deal.value),
           route: `/deals/${deal.id}`,
-          timestamp: deal.closeDate || todayString,
+          timestamp:
+            deal.closeDate || todayString,
           sortOrder: 5,
         });
       }
@@ -328,23 +320,28 @@ function NotificationCenter() {
     });
 
     return generatedNotifications
-      .sort((firstNotification, secondNotification) => {
-        if (
-          firstNotification.sortOrder !==
-          secondNotification.sortOrder
-        ) {
-          return (
-            firstNotification.sortOrder -
+      .sort(
+        (
+          firstNotification,
+          secondNotification
+        ) => {
+          if (
+            firstNotification.sortOrder !==
             secondNotification.sortOrder
+          ) {
+            return (
+              firstNotification.sortOrder -
+              secondNotification.sortOrder
+            );
+          }
+
+          return String(
+            secondNotification.timestamp
+          ).localeCompare(
+            String(firstNotification.timestamp)
           );
         }
-
-        return String(
-          secondNotification.timestamp
-        ).localeCompare(
-          String(firstNotification.timestamp)
-        );
-      })
+      )
       .slice(0, 20);
   }, [
     contacts,
@@ -377,45 +374,6 @@ function NotificationCenter() {
     );
   }, [readNotificationIds]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleEscape = (event) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside
-    );
-
-    document.addEventListener(
-      "keydown",
-      handleEscape
-    );
-
-    return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside
-      );
-
-      document.removeEventListener(
-        "keydown",
-        handleEscape
-      );
-    };
-  }, []);
-
   const markAsRead = (notificationId) => {
     setReadNotificationIds((currentIds) =>
       currentIds.includes(notificationId)
@@ -426,9 +384,10 @@ function NotificationCenter() {
 
   const markAllAsRead = () => {
     setReadNotificationIds((currentIds) => {
-      const allNotificationIds = notifications.map(
-        (notification) => notification.id
-      );
+      const allNotificationIds =
+        notifications.map(
+          (notification) => notification.id
+        );
 
       return Array.from(
         new Set([
@@ -443,181 +402,32 @@ function NotificationCenter() {
     setReadNotificationIds([]);
   };
 
-  const openNotification = (notification) => {
-    markAsRead(notification.id);
-    setIsOpen(false);
-    navigate(notification.route);
+  const value = {
+    notifications: notificationsWithReadState,
+    unreadCount,
+    readNotificationIds,
+    markAsRead,
+    markAllAsRead,
+    clearReadHistory,
   };
+
   return (
-    <div
-      className="notification-center"
-      ref={containerRef}
-    >
-      <button
-        type="button"
-        className={`notification-center__trigger ${
-          isOpen
-            ? "notification-center__trigger--open"
-            : ""
-        }`}
-        aria-label="Open notifications"
-        aria-expanded={isOpen}
-        onClick={() =>
-          setIsOpen((currentValue) => !currentValue)
-        }
-      >
-        <Bell size={19} />
-
-        {unreadCount > 0 && (
-          <span className="notification-center__badge">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        )}
-      </button>
-
-      {isOpen && (
-        <section className="notification-center__dropdown">
-          <header className="notification-center__header">
-            <div>
-              <h2>Notifications</h2>
-
-              <p>
-                {unreadCount === 0
-                  ? "You are all caught up."
-                  : `${unreadCount} unread ${
-                      unreadCount === 1
-                        ? "notification"
-                        : "notifications"
-                    }`}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              aria-label="Close notifications"
-              onClick={() => setIsOpen(false)}
-            >
-              <X size={18} />
-            </button>
-          </header>
-
-          {notificationsWithReadState.length === 0 ? (
-            <div className="notification-center__empty">
-              <CheckCircle2 size={31} />
-
-              <h3>No notifications</h3>
-
-              <p>
-                Important CRM alerts will appear here.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="notification-center__toolbar">
-                <button
-                  type="button"
-                  onClick={markAllAsRead}
-                  disabled={unreadCount === 0}
-                >
-                  <CheckCheck size={15} />
-                  Mark all as read
-                </button>
-
-                <button
-                  type="button"
-                  onClick={clearReadHistory}
-                  disabled={
-                    readNotificationIds.length === 0
-                  }
-                >
-                  Reset read status
-                </button>
-              </div>
-
-              <div className="notification-center__list">
-                {notificationsWithReadState.map(
-                  (notification) => {
-                    const Icon = notification.icon;
-
-                    return (
-                      <article
-                        className={`notification-center__item notification-center__item--${notification.severity} ${
-                          notification.isRead
-                            ? "notification-center__item--read"
-                            : ""
-                        }`}
-                        key={notification.id}
-                      >
-                        <button
-                          type="button"
-                          className="notification-center__content"
-                          onClick={() =>
-                            openNotification(
-                              notification
-                            )
-                          }
-                        >
-                          <div className="notification-center__icon">
-                            <Icon size={18} />
-                          </div>
-
-                          <div className="notification-center__text">
-                            <div>
-                              <strong>
-                                {notification.title}
-                              </strong>
-
-                              <span>
-                                {
-                                  notification.category
-                                }
-                              </span>
-                            </div>
-
-                            <p>
-                              {
-                                notification.description
-                              }
-                            </p>
-
-                            <small>
-                              {notification.detail}
-                            </small>
-                          </div>
-                        </button>
-
-                        {!notification.isRead && (
-                          <button
-                            type="button"
-                            className="notification-center__read-button"
-                            aria-label={`Mark ${notification.title} as read`}
-                            onClick={() =>
-                              markAsRead(
-                                notification.id
-                              )
-                            }
-                          >
-                            <Check size={15} />
-                          </button>
-                        )}
-                      </article>
-                    );
-                  }
-                )}
-              </div>
-
-              <footer className="notification-center__footer">
-                <span>
-                  Notifications are generated from your
-                  current CRM data.
-                </span>
-              </footer>
-            </>
-          )}
-        </section>
-      )}
-    </div>
+    <NotificationsContext.Provider value={value}>
+      {children}
+    </NotificationsContext.Provider>
   );
 }
 
-export default NotificationCenter;
+export function useNotifications() {
+  const context = useContext(
+    NotificationsContext
+  );
+
+  if (!context) {
+    throw new Error(
+      "useNotifications must be used inside a NotificationsProvider"
+    );
+  }
+
+  return context;
+}

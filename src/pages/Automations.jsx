@@ -57,6 +57,18 @@ const actionOptions = [
   "Assign deal owner",
 ];
 
+const contactStatusOptions = [
+  "Lead",
+  "Prospect",
+  "Customer",
+];
+
+const dealOwnerOptions = [
+  "Juan Ligarrero",
+  "Maria Torres",
+  "Daniel Rivera",
+];
+
 const emptyAutomation = {
   name: "",
   description: "",
@@ -64,6 +76,8 @@ const emptyAutomation = {
   trigger: "Contact created",
   condition: "No condition",
   action: "Send WhatsApp message",
+  targetContactStatus: "Customer",
+  targetDealOwner: "Juan Ligarrero",
 };
 
 const initialAutomations = [
@@ -307,6 +321,12 @@ function Automations() {
       action:
         automation.action ||
         "Send WhatsApp message",
+      targetContactStatus:
+        automation.targetContactStatus ||
+        "Customer",
+      targetDealOwner:
+        automation.targetDealOwner ||
+        "Juan Ligarrero",
     });
 
     setOpenMenuId(null);
@@ -322,7 +342,13 @@ function Automations() {
       !automationForm.description.trim() ||
       !automationForm.trigger ||
       !automationForm.condition ||
-      !automationForm.action
+      !automationForm.action ||
+      (automationForm.action ===
+        "Update contact status" &&
+        !automationForm.targetContactStatus) ||
+      (automationForm.action ===
+        "Assign deal owner" &&
+        !automationForm.targetDealOwner)
     ) {
       setFormError(
         "Please complete all automation fields."
@@ -1145,6 +1171,68 @@ function Automations() {
                 </select>
               </label>
 
+              {automationForm.action ===
+                "Update contact status" && (
+                <label>
+                  New contact status
+
+                  <select
+                    value={
+                      automationForm.targetContactStatus
+                    }
+                    onChange={(event) =>
+                      setAutomationForm({
+                        ...automationForm,
+                        targetContactStatus:
+                          event.target.value,
+                      })
+                    }
+                  >
+                    {contactStatusOptions.map(
+                      (status) => (
+                        <option
+                          value={status}
+                          key={status}
+                        >
+                          {status}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+              )}
+
+              {automationForm.action ===
+                "Assign deal owner" && (
+                <label>
+                  New deal owner
+
+                  <select
+                    value={
+                      automationForm.targetDealOwner
+                    }
+                    onChange={(event) =>
+                      setAutomationForm({
+                        ...automationForm,
+                        targetDealOwner:
+                          event.target.value,
+                      })
+                    }
+                  >
+                    {dealOwnerOptions.map(
+                      (owner) => (
+                        <option
+                          value={owner}
+                          key={owner}
+                        >
+                          {owner}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+              )}
+
               <div className="automation-modal__preview">
                 <div>
                   <Zap size={17} />
@@ -1159,6 +1247,13 @@ function Automations() {
                   <Target size={17} />
                   <span>
                     {automationForm.action}
+                    {automationForm.action ===
+                      "Update contact status"
+                      ? ` → ${automationForm.targetContactStatus}`
+                      : automationForm.action ===
+                          "Assign deal owner"
+                        ? ` → ${automationForm.targetDealOwner}`
+                        : ""}
                   </span>
                 </div>
               </div>

@@ -131,6 +131,21 @@ function ContactDetails() {
     );
   }, [contact]);
 
+  const relatedEmails = useMemo(
+    () =>
+      readStoredArray("flowcrm-email-activities")
+        .filter(
+          (email) =>
+            String(email.contactId) === String(contactId)
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.sentAt || 0).getTime() -
+            new Date(a.sentAt || 0).getTime()
+        ),
+    [contactId]
+  );
+
   const openTasks = relatedTasks.filter(
     (task) => task.status !== "Completed"
   );
@@ -179,6 +194,18 @@ function ContactDetails() {
       month: "short",
       day: "numeric",
       year: "numeric",
+    });
+  };
+
+  const formatDateTime = (date) => {
+    if (!date) return "";
+
+    return new Date(date).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     });
   };
 
@@ -540,12 +567,34 @@ function ContactDetails() {
                 </div>
               ))}
 
-              {relatedDeals.length === 0 && relatedTasks.length === 0 && (
-                <div className="contact-details__tasks-empty">
-                  <Clock3 size={28} />
-                  <p>No activity recorded yet.</p>
+              {relatedEmails.slice(0, 5).map((email) => (
+                <div
+                  className="contact-details__timeline-item"
+                  key={`email-${email.id}`}
+                >
+                  <div className="contact-details__timeline-marker">
+                    <Mail size={16} />
+                  </div>
+                  <div className="contact-details__timeline-content">
+                    <div>
+                      <h3>{email.subject}</h3>
+                      <span>Sent email</span>
+                    </div>
+                    <p>
+                      To {email.to} · {formatDateTime(email.sentAt)}
+                    </p>
+                  </div>
                 </div>
-              )}
+              ))}
+
+              {relatedDeals.length === 0 &&
+                relatedTasks.length === 0 &&
+                relatedEmails.length === 0 && (
+                  <div className="contact-details__tasks-empty">
+                    <Clock3 size={28} />
+                    <p>No activity recorded yet.</p>
+                  </div>
+                )}
             </div>
           </section>
         </main>

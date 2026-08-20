@@ -305,9 +305,87 @@ const cleanSentence = (value = "") => {
     : `${sentence}.`;
 };
 
+const getInsertedDetailVariableKeys = (
+  rawDetails,
+  variables,
+  language
+) => {
+  const raw = normalizeText(rawDetails);
+
+  if (!raw) {
+    return [];
+  }
+
+  return availableTemplateVariables
+    .filter((variable) => {
+      const label =
+        language === "es"
+          ? variable.labelEs
+          : variable.label;
+
+      const value = variables?.[variable.key];
+      const cleanValue =
+        value === undefined || value === null
+          ? ""
+          : String(value).trim();
+
+      const insertedText = cleanValue
+        ? `${label}: ${cleanValue}`
+        : label;
+
+      return raw.includes(insertedText);
+    })
+    .map((variable) => variable.key);
+};
+
+const removeConsumedDetailVariables = (
+  rawDetails,
+  variables,
+  language,
+  consumedKeys
+) => {
+  let cleaned = String(rawDetails || "");
+
+  availableTemplateVariables.forEach(
+    (variable) => {
+      if (!consumedKeys.has(variable.key)) {
+        return;
+      }
+
+      const label =
+        language === "es"
+          ? variable.labelEs
+          : variable.label;
+
+      const value = variables?.[variable.key];
+      const cleanValue =
+        value === undefined || value === null
+          ? ""
+          : String(value).trim();
+
+      const insertedText = cleanValue
+        ? `${label}: ${cleanValue}`
+        : label;
+
+      cleaned = cleaned.replaceAll(
+        insertedText,
+        " "
+      );
+    }
+  );
+
+  return cleaned
+    .replace(/\s+/g, " ")
+    .replace(/^[,;|.\s]+|[,;|\s]+$/g, "")
+    .trim();
+};
+
 const sanitizeAdditionalDetails = (
   rawDetails,
-  resolvedDetails
+  resolvedDetails,
+  variables,
+  language,
+  consumedVariableKeys = []
 ) => {
   const raw = normalizeText(rawDetails);
   const resolved = normalizeText(
@@ -318,53 +396,50 @@ const sanitizeAdditionalDetails = (
     return "";
   }
 
-  const tokenMatches =
-    raw.match(/{{[^}]+}}/g) || [];
+  const consumedKeys = new Set(
+    consumedVariableKeys
+  );
 
-  const proseWithoutTokens = raw
+  const cleanedRaw =
+    removeConsumedDetailVariables(
+      raw,
+      variables,
+      language,
+      consumedKeys
+    );
+
+  if (!cleanedRaw) {
+    return "";
+  }
+
+  const cleanedResolved =
+    resolveTemplateVariables(
+      cleanedRaw,
+      variables,
+      { keepUnknownVariables: true }
+    );
+
+  const tokenMatches =
+    cleanedRaw.match(/{{[^}]+}}/g) || [];
+
+  const proseWithoutTokens = cleanedRaw
     .replace(/{{[^}]+}}/g, " ")
     .replace(/[|,;]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  /*
-   * If the field is essentially a collection of variables,
-   * do not dump their resolved values into the email.
-   */
   if (
     tokenMatches.length >= 2 &&
     proseWithoutTokens.length < 18
   ) {
-    return "";
+    return buildStructuredVariableDetails(
+      cleanedRaw,
+      variables,
+      language
+    );
   }
 
-  const phoneCount =
-    (
-      resolved.match(
-        /\+?\d[\d\s()-]{7,}\d/g
-      ) || []
-    ).length;
-
-  const currencyCount =
-    (
-      resolved.match(
-        /(?:USD|COP|EUR|GBP|AUD|CAD|\$|€|£)\s?[\d.,]+/gi
-      ) || []
-    ).length;
-
-  /*
-   * Suppress data dumps such as:
-   * "+57 310... Bright Labs $15,000 25% 12 months".
-   */
-  if (
-    resolved.split(/\s+/).length <= 18 &&
-    phoneCount >= 1 &&
-    currencyCount >= 1
-  ) {
-    return "";
-  }
-
-  return cleanSentence(resolved);
+  return cleanSentence(cleanedResolved);
 };
 
 const getContactName = (contact) =>
@@ -524,6 +599,364 @@ const getToneClosing = (
     closings.professional;
 };
 
+const localizeDuration = (
+  value,
+  language = "en"
+) => {
+  if (
+    value === undefined ||
+    value === null ||
+    String(value).trim() === ""
+  ) {
+    return "";
+  }
+
+  const raw = String(value).trim();
+
+  const durationMatch = raw.match(
+    /^(\d+(?:[.,]\d+)?)\s*(months?|mes(?:es)?|years?|años?|yrs?|mos?)$/i
+  );
+
+  if (!durationMatch) {
+    return raw;
+  }
+
+  const amount = durationMatch[1];
+  const numericAmount = Number(
+    amount.replace(",", ".")
+  );
+  const unit = durationMatch[2].toLowerCase();
+
+  const isMonth =
+    unit.startsWith("month") ||
+    unit.startsWith("mes") ||
+    unit.startsWith("mo");
+
+  if (language === "es") {
+    if (isMonth) {
+      return `${amount} ${
+        numericAmount === 1 ? "mes" : "meses"
+      }`;
+    }
+
+    return `${amount} ${
+      numericAmount === 1 ? "año" : "años"
+    }`;
+  }
+
+  if (isMonth) {
+    return `${amount} ${
+      numericAmount === 1 ? "month" : "months"
+    }`;
+  }
+
+  return `${amount} ${
+    numericAmount === 1 ? "year" : "years"
+  }`;
+};
+
+
+const formatDurationAsModifier = (
+  value,
+  language = "en"
+) => {
+  const localized = localizeDuration(
+    value,
+    language
+  );
+
+  if (!localized || language === "es") {
+    return localized;
+  }
+
+  const match = localized.match(
+    /^(\d+(?:[.,]\d+)?)\s+(months?|years?)$/i
+  );
+
+  if (!match) {
+    return localized;
+  }
+
+  const unit = match[2]
+    .toLowerCase()
+    .startsWith("month")
+    ? "month"
+    : "year";
+
+  return `${match[1]}-${unit}`;
+};
+
+const formatBusinessDate = (
+  value,
+  language = "en"
+) => {
+  if (
+    value === undefined ||
+    value === null ||
+    String(value).trim() === ""
+  ) {
+    return "";
+  }
+
+  const raw = String(value).trim();
+  const isoMatch = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/
+  );
+
+  if (!isoMatch) {
+    return raw;
+  }
+
+  const year = Number(isoMatch[1]);
+  const month = Number(isoMatch[2]);
+  const day = Number(isoMatch[3]);
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return raw;
+  }
+
+  const date = new Date(
+    Date.UTC(year, month - 1, day)
+  );
+
+  return new Intl.DateTimeFormat(
+    language === "es"
+      ? "es-CO"
+      : "en-US",
+    {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "UTC",
+    }
+  ).format(date);
+};
+
+const buildStructuredVariableDetails = (
+  rawDetails,
+  variables,
+  language
+) => {
+  const tokens =
+    String(rawDetails).match(
+      /{{\s*([^}]+?)\s*}}/g
+    ) || [];
+
+  if (tokens.length === 0) {
+    return "";
+  }
+
+  const labels = {
+    contact_name: {
+      en: "Contact",
+      es: "Contacto",
+    },
+    contact_first_name: {
+      en: "First name",
+      es: "Nombre",
+    },
+    contact_email: {
+      en: "Email",
+      es: "Correo",
+    },
+    contact_phone: {
+      en: "Phone",
+      es: "Teléfono",
+    },
+    company_name: {
+      en: "Company",
+      es: "Empresa",
+    },
+    deal_name: {
+      en: "Deal",
+      es: "Negocio",
+    },
+    deal_value: {
+      en: "Deal value",
+      es: "Valor del negocio",
+    },
+    projected_roi: {
+      en: "Projected ROI",
+      es: "ROI proyectado",
+    },
+    roi_period: {
+      en: "ROI period",
+      es: "Periodo del ROI",
+    },
+    payback_period: {
+      en: "Payback period",
+      es: "Periodo de recuperación",
+    },
+  };
+
+  const selectedKeys = tokens
+    .map((token) =>
+      token
+        .replace(/{{|}}/g, "")
+        .trim()
+    )
+    .filter(Boolean);
+
+  const getValue = (key) => {
+    let value = variables?.[key];
+
+    if (
+      key === "roi_period" ||
+      key === "payback_period"
+    ) {
+      value = localizeDuration(
+        value,
+        language
+      );
+    }
+
+    if (
+      value === undefined ||
+      value === null ||
+      String(value).trim() === ""
+    ) {
+      return "";
+    }
+
+    return String(value).trim();
+  };
+
+  const selected = new Set(selectedKeys);
+  const consumed = new Set();
+  const sentences = [];
+
+  const projectedRoi = getValue(
+    "projected_roi"
+  );
+  const roiPeriod = getValue("roi_period");
+  const paybackPeriod = getValue(
+    "payback_period"
+  );
+
+  /*
+   * Financial variables need to read like business language,
+   * not like a raw list of CRM fields. When payback and ROI
+   * are selected together, combine both timelines into one
+   * sentence so 24 months and 12 months are clearly describing
+   * different metrics rather than conflicting dates.
+   */
+  if (
+    selected.has("payback_period") &&
+    paybackPeriod &&
+    selected.has("projected_roi") &&
+    projectedRoi
+  ) {
+    if (
+      selected.has("roi_period") &&
+      roiPeriod
+    ) {
+      sentences.push(
+        language === "es"
+          ? `Si se realiza la inversión, el periodo estimado de recuperación sería de ${paybackPeriod}, con un ROI proyectado del ${projectedRoi}% durante los primeros ${roiPeriod}.`
+          : `If the investment is made, the estimated payback period would be ${paybackPeriod}, with a projected ROI of ${projectedRoi}% over the first ${roiPeriod}.`
+      );
+      consumed.add("roi_period");
+    } else {
+      sentences.push(
+        language === "es"
+          ? `Si se realiza la inversión, el periodo estimado de recuperación sería de ${paybackPeriod}, con un ROI proyectado del ${projectedRoi}%.`
+          : `If the investment is made, the estimated payback period would be ${paybackPeriod}, with a projected ROI of ${projectedRoi}%.`
+      );
+    }
+
+    consumed.add("payback_period");
+    consumed.add("projected_roi");
+  } else {
+    if (
+      selected.has("projected_roi") &&
+      projectedRoi
+    ) {
+      if (
+        selected.has("roi_period") &&
+        roiPeriod
+      ) {
+        sentences.push(
+          language === "es"
+            ? `Se proyecta un ROI del ${projectedRoi}% durante los primeros ${roiPeriod}.`
+            : `The projected ROI is ${projectedRoi}% over the first ${roiPeriod}.`
+        );
+        consumed.add("roi_period");
+      } else {
+        sentences.push(
+          language === "es"
+            ? `Se proyecta un ROI del ${projectedRoi}%.`
+            : `The projected ROI is ${projectedRoi}%.`
+        );
+      }
+
+      consumed.add("projected_roi");
+    }
+
+    if (
+      selected.has("payback_period") &&
+      paybackPeriod
+    ) {
+      sentences.push(
+        language === "es"
+          ? `El periodo estimado de recuperación de la inversión sería de ${paybackPeriod}.`
+          : `The estimated payback period would be ${paybackPeriod}.`
+      );
+      consumed.add("payback_period");
+    }
+  }
+
+  /*
+   * A period without its ROI percentage is ambiguous, so keep
+   * it readable while making clear what the period refers to.
+   */
+  if (
+    selected.has("roi_period") &&
+    roiPeriod &&
+    !consumed.has("roi_period")
+  ) {
+    sentences.push(
+      language === "es"
+        ? `El periodo utilizado para medir el ROI es de ${roiPeriod}.`
+        : `The ROI measurement period is ${roiPeriod}.`
+    );
+    consumed.add("roi_period");
+  }
+
+  const remainingParts = selectedKeys
+    .filter((key) => !consumed.has(key))
+    .map((key) => {
+      const value = getValue(key);
+
+      if (!value) {
+        return null;
+      }
+
+      const label =
+        labels[key]?.[language] ||
+        key
+          .replaceAll("_", " ")
+          .replace(/\b\w/g, (character) =>
+            character.toUpperCase()
+          );
+
+      return `${label}: ${value}`;
+    })
+    .filter(Boolean);
+
+  if (remainingParts.length > 0) {
+    sentences.push(
+      `${remainingParts.join(". ")}.`
+    );
+  }
+
+  return sentences.join(" ");
+};
+
 const buildContext = ({
   contact,
   company,
@@ -605,7 +1038,10 @@ const buildContext = ({
       ? Number(deal.projectedRoi)
       : null,
 
-    roiPeriod: deal?.roiPeriod || "",
+    roiPeriod: localizeDuration(
+      deal?.roiPeriod,
+      language
+    ),
 
     implementationCost: hasNumericValue(
       deal?.implementationCost
@@ -624,13 +1060,22 @@ const buildContext = ({
       : "",
 
     savingsPeriod:
-      deal?.savingsPeriod || "",
+      localizeDuration(
+        deal?.savingsPeriod,
+        language
+      ),
 
     paybackPeriod:
-      deal?.paybackPeriod || "",
+      localizeDuration(
+        deal?.paybackPeriod,
+        language
+      ),
 
     contractDuration:
-      deal?.contractDuration || "",
+      localizeDuration(
+        deal?.contractDuration,
+        language
+      ),
 
     billingModel:
       deal?.billingModel || "",
@@ -703,82 +1148,317 @@ const getTemplateContent = (
       template.content
     : template.content;
 
+const buildSuccessMetricSentence = (metric, language) => {
+  const raw = cleanSentence(metric).replace(/\.$/, "").trim();
+
+  if (!raw) {
+    return "";
+  }
+
+  const normalizeEnglishMetricNoun = (noun) => {
+    const cleaned = String(noun || "").trim();
+    const lower = cleaned.toLowerCase();
+
+    if (lower === "cost") return "costs";
+    if (lower === "expense") return "expenses";
+    if (lower === "response time") return "response time";
+
+    return cleaned;
+  };
+
+  if (language === "es") {
+    const reductionMatch = raw.match(/^(?:reducir|reduce)\s+(.+?)\s+(?:en|por)\s+(\d+(?:[.,]\d+)?)%$/i);
+    const increaseMatch = raw.match(/^(?:aumentar|incrementar|increase)\s+(.+?)\s+(?:en|por)\s+(\d+(?:[.,]\d+)?)%$/i);
+
+    if (reductionMatch) {
+      return `El éxito de la iniciativa se mediría por una reducción del ${reductionMatch[2]}% en ${reductionMatch[1]}.`;
+    }
+
+    if (increaseMatch) {
+      return `El éxito de la iniciativa se mediría por un aumento del ${increaseMatch[2]}% en ${increaseMatch[1]}.`;
+    }
+
+    return `El principal indicador de éxito sería ${raw.charAt(0).toLowerCase()}${raw.slice(1)}.`;
+  }
+
+  const reductionMatch = raw.match(/^(?:reduce|reducing|decrease|decreasing|lower|lowering)\s+(.+?)\s+by\s+(\d+(?:\.\d+)?)%$/i);
+  const increaseMatch = raw.match(/^(?:increase|increasing|improve|improving|raise|raising)\s+(.+?)\s+by\s+(\d+(?:\.\d+)?)%$/i);
+
+  if (reductionMatch) {
+    return `Success would be measured by a ${reductionMatch[2]}% reduction in ${normalizeEnglishMetricNoun(reductionMatch[1])}.`;
+  }
+
+  if (increaseMatch) {
+    return `Success would be measured by a ${increaseMatch[2]}% increase in ${normalizeEnglishMetricNoun(increaseMatch[1])}.`;
+  }
+
+  return `The primary success metric would be ${raw.charAt(0).toLowerCase()}${raw.slice(1)}.`;
+};
+
 const buildBusinessValueParagraph = (
   context,
   language,
-  tone
+  tone,
+  detailVariableKeys = [],
+  variables = {},
+  type = "follow-up"
 ) => {
-  const components = [];
+  const selected = new Set(detailVariableKeys);
+  const paragraphs = [];
+  const financial = [];
+  const commercial = [];
+  const strategic = [];
+  const internal = [];
 
-  if (language === "es") {
-    if (context.dealValue) {
-      components.push(
-        tone === "concise"
+  const has = (key) => selected.has(key);
+  const value = (key) => {
+    const raw = variables?.[key];
+    return raw === undefined || raw === null ? "" : String(raw).trim();
+  };
+
+  const lowerFirst = (text) => {
+    const clean = String(text || "").trim().replace(/\.$/, "");
+    return clean ? clean.charAt(0).toLowerCase() + clean.slice(1) : "";
+  };
+
+  const localizeRevenueType = (raw) => {
+    const normalized = normalizeSearchText(raw);
+    if (language === "es") {
+      if (normalized.includes("recurr")) return "recurrente";
+      if (normalized.includes("one-time") || normalized.includes("unico") || normalized.includes("único")) return "único";
+      return raw;
+    }
+    if (normalized.includes("recurr")) return "recurring";
+    if (normalized.includes("one-time") || normalized.includes("unico") || normalized.includes("único")) return "one-time";
+    return raw;
+  };
+
+  const localizeBillingModel = (raw) => {
+    const normalized = normalizeSearchText(raw);
+    if (language === "es") {
+      if (normalized.includes("one-time") || normalized.includes("unico") || normalized.includes("único")) return "un pago único";
+      if (normalized.includes("monthly") || normalized.includes("mensual")) return "facturación mensual";
+      if (normalized.includes("annual") || normalized.includes("anual")) return "facturación anual";
+      return raw;
+    }
+    if (normalized.includes("one-time") || normalized.includes("unico") || normalized.includes("único")) return "a one-time payment";
+    if (normalized.includes("monthly") || normalized.includes("mensual")) return "monthly billing";
+    if (normalized.includes("annual") || normalized.includes("anual")) return "annual billing";
+    return raw;
+  };
+
+  // Strategic context: business problem and proposed solution belong in prose,
+  // while identity/contact fields are already used elsewhere in the message.
+  if (has("business_problem") && context.businessProblem) {
+    strategic.push(
+      language === "es"
+        ? `La iniciativa busca resolver ${lowerFirst(context.businessProblem)}.`
+        : `The initiative is intended to address ${lowerFirst(context.businessProblem)}.`
+    );
+  }
+
+  if (has("solution_summary") && context.solutionSummary) {
+    strategic.push(
+      language === "es"
+        ? `La solución propuesta se centra en ${lowerFirst(context.solutionSummary)}.`
+        : `The proposed solution focuses on ${lowerFirst(context.solutionSummary)}.`
+    );
+  }
+
+  // Financial case.
+  if (has("deal_value") && context.dealValue) {
+    financial.push(
+      language === "es"
+        ? tone === "concise"
           ? `La inversión estimada es de ${context.dealValue}.`
           : `La inversión estimada para esta iniciativa es de ${context.dealValue}.`
-      );
-    }
-
-    if (
-      context.projectedRoi !== null &&
-      context.roiPeriod
-    ) {
-      components.push(
-        `Con base en la información disponible, se proyecta un retorno aproximado del ${context.projectedRoi}% durante ${context.roiPeriod}.`
-      );
-    }
-
-    if (context.customerSavings) {
-      components.push(
-        `Además, los ahorros estimados podrían alcanzar ${context.customerSavings}${
-          context.savingsPeriod
-            ? ` durante ${context.savingsPeriod}`
-            : ""
-        }.`
-      );
-    }
-
-    if (context.paybackPeriod) {
-      components.push(
-        `El periodo estimado de recuperación de la inversión es de ${context.paybackPeriod}.`
-      );
-    }
-  } else {
-    if (context.dealValue) {
-      components.push(
-        tone === "concise"
+        : tone === "concise"
           ? `The estimated investment is ${context.dealValue}.`
           : `The estimated investment for this initiative is ${context.dealValue}.`
+    );
+  }
+
+  if (has("implementation_cost") && context.implementationCost) {
+    financial.push(
+      language === "es"
+        ? `El costo estimado de implementación es de ${context.implementationCost}.`
+        : `Estimated implementation costs are ${context.implementationCost}.`
+    );
+  }
+
+  if (
+    has("payback_period") && context.paybackPeriod &&
+    has("projected_roi") && context.projectedRoi !== null
+  ) {
+    financial.push(
+      language === "es"
+        ? has("roi_period") && context.roiPeriod
+          ? `Si se realiza la inversión, el periodo estimado de recuperación sería de ${context.paybackPeriod}, con un ROI proyectado del ${context.projectedRoi}% durante los primeros ${context.roiPeriod}.`
+          : `Si se realiza la inversión, el periodo estimado de recuperación sería de ${context.paybackPeriod}, con un ROI proyectado del ${context.projectedRoi}%.`
+        : has("roi_period") && context.roiPeriod
+          ? `If the investment is made, the estimated payback period would be ${context.paybackPeriod}, with a projected ROI of ${context.projectedRoi}% over the first ${context.roiPeriod}.`
+          : `If the investment is made, the estimated payback period would be ${context.paybackPeriod}, with a projected ROI of ${context.projectedRoi}%.`
+    );
+  } else {
+    if (has("projected_roi") && context.projectedRoi !== null) {
+      financial.push(
+        language === "es"
+          ? has("roi_period") && context.roiPeriod
+            ? `Se proyecta un ROI aproximado del ${context.projectedRoi}% durante ${context.roiPeriod}.`
+            : `Se proyecta un ROI aproximado del ${context.projectedRoi}%.`
+          : has("roi_period") && context.roiPeriod
+            ? `The projected ROI is approximately ${context.projectedRoi}% over ${context.roiPeriod}.`
+            : `The projected ROI is approximately ${context.projectedRoi}%.`
+      );
+    } else if (has("roi_period") && context.roiPeriod) {
+      financial.push(
+        language === "es"
+          ? `El periodo utilizado para medir el ROI es de ${context.roiPeriod}.`
+          : `The ROI measurement period is ${context.roiPeriod}.`
       );
     }
 
-    if (
-      context.projectedRoi !== null &&
-      context.roiPeriod
-    ) {
-      components.push(
-        `Based on the available information, the projected return is approximately ${context.projectedRoi}% over ${context.roiPeriod}.`
-      );
-    }
-
-    if (context.customerSavings) {
-      components.push(
-        `In addition, estimated savings could reach ${context.customerSavings}${
-          context.savingsPeriod
-            ? ` over ${context.savingsPeriod}`
-            : ""
-        }.`
-      );
-    }
-
-    if (context.paybackPeriod) {
-      components.push(
-        `The estimated payback period is ${context.paybackPeriod}.`
+    if (has("payback_period") && context.paybackPeriod) {
+      financial.push(
+        language === "es"
+          ? `El periodo estimado de recuperación de la inversión sería de ${context.paybackPeriod}.`
+          : `The estimated payback period would be ${context.paybackPeriod}.`
       );
     }
   }
 
-  return components.join(" ");
+  if (has("expected_customer_savings") && context.customerSavings) {
+    financial.push(
+      language === "es"
+        ? `Además, los ahorros estimados podrían alcanzar ${context.customerSavings}${has("savings_period") && context.savingsPeriod ? ` durante ${context.savingsPeriod}` : ""}.`
+        : `In addition, estimated savings could reach ${context.customerSavings}${has("savings_period") && context.savingsPeriod ? ` over ${context.savingsPeriod}` : ""}.`
+    );
+  } else if (has("savings_period") && context.savingsPeriod) {
+    financial.push(
+      language === "es"
+        ? `Los ahorros se evaluarían durante un periodo de ${context.savingsPeriod}.`
+        : `Savings would be measured over a ${context.savingsPeriod} period.`
+    );
+  }
+
+  const revenueType = has("revenue_type") ? localizeRevenueType(context.revenueType || value("revenue_type")) : "";
+  if (has("expected_annual_value") && context.annualValue) {
+    if (revenueType && normalizeSearchText(revenueType).includes(language === "es" ? "recurrent" : "recurr")) {
+      financial.push(
+        language === "es"
+          ? `La oportunidad tendría un valor anual recurrente estimado de ${context.annualValue}.`
+          : `The opportunity is expected to generate ${context.annualValue} in annual recurring value.`
+      );
+    } else {
+      financial.push(
+        language === "es"
+          ? `El valor anual esperado de la oportunidad sería de ${context.annualValue}.`
+          : `The expected annual value of the opportunity would be ${context.annualValue}.`
+      );
+    }
+  } else if (revenueType) {
+    financial.push(
+      language === "es"
+        ? `La oportunidad está estructurada como un ingreso ${revenueType}.`
+        : `The opportunity is structured as ${revenueType} revenue.`
+    );
+  }
+
+  if (has("success_metric") && context.successMetric) {
+    financial.push(buildSuccessMetricSentence(context.successMetric, language));
+  }
+
+  // Commercial terms are grouped rather than dumped as labels.
+  const billingModel = has("billing_model") ? localizeBillingModel(context.billingModel || value("billing_model")) : "";
+  const contractDuration = has("contract_duration") ? context.contractDuration : "";
+
+  if (billingModel || contractDuration) {
+    if (language === "es") {
+      if (billingModel && contractDuration) {
+        commercial.push(`La estructura comercial propuesta contempla un contrato de ${contractDuration} con ${billingModel}.`);
+      } else if (billingModel) {
+        commercial.push(`El modelo de facturación propuesto es ${billingModel}.`);
+      } else {
+        commercial.push(`La duración propuesta del contrato es de ${contractDuration}.`);
+      }
+    } else {
+      if (billingModel && contractDuration) {
+        commercial.push(`The proposed commercial structure is a ${formatDurationAsModifier(contractDuration, "en")} contract with ${billingModel}.`);
+      } else if (billingModel) {
+        commercial.push(`The proposed billing model uses ${billingModel}.`);
+      } else {
+        commercial.push(`The proposed contract term is ${contractDuration}.`);
+      }
+    }
+  }
+
+  if (has("decision_deadline") && context.decisionDeadline) {
+    commercial.push(
+      language === "es"
+        ? `Para mantener el impulso, la fecha objetivo para la decisión es ${formatBusinessDate(context.decisionDeadline, "es")}.`
+        : `To keep the process moving, the target decision date is ${formatBusinessDate(context.decisionDeadline, "en")}.`
+    );
+  } else if (has("deal_close_date") && context.closeDate) {
+    commercial.push(
+      language === "es"
+        ? `La fecha estimada de cierre es ${formatBusinessDate(context.closeDate, "es")}.`
+        : `The current target close date is ${formatBusinessDate(context.closeDate, "en")}.`
+    );
+  }
+
+  // Company descriptors can add context without exposing raw CRM labels.
+  const industry = has("company_industry") ? value("company_industry") : "";
+  const location = has("company_location") ? value("company_location") : "";
+  if (industry || location) {
+    if (language === "es") {
+      if (industry && location) {
+        strategic.unshift(`${context.companyName} opera en el sector de ${industry} en ${location}.`);
+      } else if (industry) {
+        strategic.unshift(`${context.companyName} opera en el sector de ${industry}.`);
+      } else {
+        strategic.unshift(`${context.companyName} tiene operaciones en ${location}.`);
+      }
+    } else {
+      if (industry && location) {
+        strategic.unshift(`${context.companyName} operates in the ${industry} sector in ${location}.`);
+      } else if (industry) {
+        strategic.unshift(`${context.companyName} operates in the ${industry} sector.`);
+      } else {
+        strategic.unshift(`${context.companyName} operates in ${location}.`);
+      }
+    }
+  }
+
+  // Pipeline-only fields are appropriate in an internal executive summary,
+  // but should not be exposed automatically in customer-facing messages.
+  if (type === "executive-summary") {
+    const stage = has("deal_stage") ? context.dealStage : "";
+    const probability = has("deal_probability") && context.probability !== null ? context.probability : null;
+    const weightedValue = has("expected_deal_value") ? context.expectedDealValue : "";
+
+    if (stage || probability !== null || weightedValue) {
+      if (language === "es") {
+        const parts = [];
+        if (stage) parts.push(`etapa ${stage}`);
+        if (probability !== null) parts.push(`probabilidad estimada del ${probability}%`);
+        if (weightedValue) parts.push(`valor ponderado de ${weightedValue}`);
+        internal.push(`Internamente, la oportunidad se encuentra en ${parts.join(", con ")}.`);
+      } else {
+        const parts = [];
+        if (stage) parts.push(`${stage} stage`);
+        if (probability !== null) parts.push(`${probability}% estimated probability`);
+        if (weightedValue) parts.push(`${weightedValue} weighted value`);
+        internal.push(`Internally, the opportunity is currently at the ${parts.join(", with ")}.`);
+      }
+    }
+  }
+
+  if (strategic.length) paragraphs.push(strategic.join(" "));
+  if (financial.length) paragraphs.push(financial.join(" "));
+  if (commercial.length) paragraphs.push(commercial.join(" "));
+  if (internal.length) paragraphs.push(internal.join(" "));
+
+  return paragraphs.join("\n\n");
 };
 
 const buildObjectiveSentence = ({
@@ -846,7 +1526,7 @@ const buildObjectiveSentence = ({
     if (
       normalized.includes("hacer seguimiento")
     ) {
-      return "Quería retomar la conversación y confirmar si existe algún punto pendiente antes de avanzar.";
+      return "Quería confirmar si existe algún punto pendiente antes de avanzar.";
     }
 
     if (
@@ -905,7 +1585,7 @@ const buildObjectiveSentence = ({
   if (
     normalized.includes("follow up")
   ) {
-    return "I wanted to reconnect and confirm whether there are any open questions before we move forward.";
+    return "I wanted to confirm whether there are any open questions before we move forward.";
   }
 
   if (
@@ -1073,6 +1753,8 @@ const generateContent = ({
   objective,
   details,
   context,
+  detailVariableKeys = [],
+  variables = {},
 }) => {
   const opening = getToneOpening(
     tone,
@@ -1093,7 +1775,10 @@ const generateContent = ({
     buildBusinessValueParagraph(
       context,
       language,
-      tone
+      tone,
+      detailVariableKeys,
+      variables,
+      type
     );
 
   const closing = getToneClosing(
@@ -2059,7 +2744,31 @@ function AIWriter() {
       : setDetails;
 
     const element = ref.current;
-    const token = variable.token;
+
+    // Keep template tokens internal. In the editor, insert a clean,
+    // human-readable CRM value so users never have to work with
+    // developer-style {{variable}} syntax.
+    const resolvedValue =
+      currentVariables[variable.key];
+
+    const variableLabel =
+      language === "es"
+        ? variable.labelEs
+        : variable.label;
+
+    const cleanValue =
+      resolvedValue === undefined ||
+      resolvedValue === null
+        ? ""
+        : String(resolvedValue).trim();
+
+    const insertionValue = isObjective
+      ? cleanValue
+      : cleanValue
+        ? `${variableLabel}: ${cleanValue}`
+        : variableLabel;
+
+    const token = insertionValue;
 
     const start =
       element?.selectionStart ??
@@ -2118,7 +2827,9 @@ function AIWriter() {
       language === "es"
         ? "Variable insertada"
         : "Variable inserted",
-      `${variable.token} → ${
+      `${variableLabel}${
+        cleanValue ? `: ${cleanValue}` : ""
+      } → ${
         isObjective
           ? language === "es"
             ? "Objetivo principal"
@@ -2152,10 +2863,28 @@ function AIWriter() {
           }
         );
 
+      const detailVariableKeys =
+        getInsertedDetailVariableKeys(
+          details,
+          currentVariables,
+          language
+        );
+
+      // Every Smart Variable is structured CRM data. Once selected, it is
+      // either woven into the narrative by generateContent or intentionally
+      // kept as internal context. It should never fall through as a raw
+      // "Label: value" dump in Additional details.
+      const autoIntegratedDetailKeys = detailVariableKeys;
+
       const resolvedDetails =
         sanitizeAdditionalDetails(
           details,
-          rawResolvedDetails
+          rawResolvedDetails,
+          currentVariables,
+          language,
+          detailVariableKeys.filter((key) =>
+            autoIntegratedDetailKeys.includes(key)
+          )
         );
 
       const result = generateContent({
@@ -2165,14 +2894,40 @@ function AIWriter() {
         objective: resolvedObjective,
         details: resolvedDetails,
         context: currentContext,
+        detailVariableKeys,
+        variables: currentVariables,
       });
 
       setGeneratedSubject(result.subject);
-      setGeneratedContent(
-        result.content
-          .replace(/\n{3,}/g, "\n\n")
-          .trim()
-      );
+      let polishedContent = result.content
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+
+      // If the deal owner was explicitly selected, use it as the signature
+      // instead of exposing it as a CRM field in the body.
+      if (
+        detailVariableKeys.includes("deal_owner") &&
+        currentVariables?.deal_owner
+      ) {
+        const ownerName = String(
+          currentVariables.deal_owner
+        ).trim();
+
+        if (ownerName) {
+          polishedContent =
+            language === "es"
+              ? polishedContent.replace(
+                  /Saludos,\s*$/,
+                  `Saludos,\n${ownerName}`
+                )
+              : polishedContent.replace(
+                  /Best regards,\s*$/,
+                  `Best regards,\n${ownerName}`
+                );
+        }
+      }
+
+      setGeneratedContent(polishedContent);
       setIsGenerating(false);
 
       toast.success(
@@ -2898,9 +3653,13 @@ function AIWriter() {
                                   ? "Insertar"
                                   : "Insert"
                               } ${
-                                variable.token
-                              }\n${
+                                language === "es"
+                                  ? variable.labelEs
+                                  : variable.label
+                              }${
                                 resolvedValue
+                                  ? `: ${resolvedValue}`
+                                  : ""
                               }`}
                               onClick={() =>
                                 insertVariableAtCursor(
@@ -2908,13 +3667,7 @@ function AIWriter() {
                                 )
                               }
                             >
-                              <code>
-                                {
-                                  variable.token
-                                }
-                              </code>
-
-                              <span>
+                              <span className="ai-writer-variable-card__label">
                                 {language === "es"
                                   ? variable.labelEs
                                   : variable.label}
@@ -2923,6 +3676,13 @@ function AIWriter() {
                               <small>
                                 {resolvedValue}
                               </small>
+
+                              <span
+                                className="ai-writer-variable-card__insert"
+                                aria-hidden="true"
+                              >
+                                +
+                              </span>
                             </button>
                           );
                         }

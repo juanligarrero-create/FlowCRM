@@ -3,62 +3,43 @@
    Sprint 19 polish
 ========================================================= */
 
+/* =========================================================
+   FlowCRM — Deal Details
+   Sprint 21 shared design system
+========================================================= */
+
 .deal-details-page {
-  --dd-bg: #f4f6fb;
-  --dd-surface: #ffffff;
-  --dd-surface-soft: #f8fafc;
-  --dd-surface-hover: #f1f5f9;
-  --dd-border: #e2e8f0;
-  --dd-border-strong: #cbd5e1;
-  --dd-text: #0f172a;
-  --dd-text-soft: #475569;
-  --dd-text-muted: #64748b;
-  --dd-primary: #4f46e5;
-  --dd-primary-strong: #4338ca;
-  --dd-primary-soft: #eef2ff;
-  --dd-primary-border: #c7d2fe;
-  --dd-success: #16a34a;
-  --dd-success-soft: rgba(34, 197, 94, 0.11);
-  --dd-danger: #dc2626;
-  --dd-danger-soft: rgba(239, 68, 68, 0.08);
-  --dd-warning: #d97706;
-  --dd-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 12px 30px rgba(15, 23, 42, 0.06);
+  --dd-bg: var(--app-bg);
+  --dd-surface: var(--surface);
+  --dd-surface-soft: var(--surface-soft);
+  --dd-surface-hover: var(--surface-muted);
+
+  --dd-border: var(--border);
+  --dd-border-strong: var(--border);
+
+  --dd-text: var(--text-primary);
+  --dd-text-soft: var(--text-secondary);
+  --dd-text-muted: var(--text-muted);
+
+  --dd-primary: var(--primary);
+  --dd-primary-strong: var(--primary-hover);
+  --dd-primary-soft: var(--primary-soft);
+  --dd-primary-border: var(--border);
+
+  --dd-success: var(--success);
+  --dd-success-soft: var(--success-soft);
+
+  --dd-danger: var(--danger);
+  --dd-danger-soft: var(--danger-soft);
+
+  --dd-warning: var(--warning);
+
+  --dd-shadow: var(--shadow-sm);
 
   min-height: 100%;
-  padding: 28px;
+  padding: var(--space-8);
   background: var(--dd-bg);
   color: var(--dd-text);
-}
-
-body.dark .deal-details-page,
-html.dark .deal-details-page,
-[data-theme="dark"] .deal-details-page,
-[data-color-mode="dark"] .deal-details-page,
-.theme-dark .deal-details-page,
-.dark-mode .deal-details-page {
-  --dd-bg: #0b1220;
-  --dd-surface: #111827;
-  --dd-surface-soft: #172033;
-  --dd-surface-hover: #1e293b;
-  --dd-border: #273449;
-  --dd-border-strong: #3b4a61;
-  --dd-text: #f8fafc;
-  --dd-text-soft: #cbd5e1;
-  --dd-text-muted: #94a3b8;
-  --dd-primary: #818cf8;
-  --dd-primary-strong: #6366f1;
-  --dd-primary-soft: rgba(99, 102, 241, 0.16);
-  --dd-primary-border: rgba(129, 140, 248, 0.44);
-  --dd-success: #4ade80;
-  --dd-success-soft: rgba(74, 222, 128, 0.1);
-  --dd-danger: #f87171;
-  --dd-danger-soft: rgba(248, 113, 113, 0.1);
-  --dd-warning: #f59e0b;
-  --dd-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.22),
-    0 14px 36px rgba(0, 0, 0, 0.28);
 }
 
 .deal-details-page *,

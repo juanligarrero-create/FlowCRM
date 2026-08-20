@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Search, Plus, MoreHorizontal } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { fireAutomationTrigger } from "../utils/automationEngine.js";
 import "./Contacts.css";
 
 const emptyContact = {
@@ -46,7 +47,7 @@ const initialContacts = [
   },
 ];
 
-function Contacts() {
+export default function Contacts() {
   const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -159,44 +160,74 @@ function Contacts() {
         ...newContact,
       };
 
-      setContacts((currentContacts) => [
-        ...currentContacts,
+      const updatedContacts = [
+        ...contacts,
         contactToAdd,
-      ]);
+      ];
+
+      localStorage.setItem(
+        "flowcrm-contacts",
+        JSON.stringify(updatedContacts)
+      );
+
+      setContacts(updatedContacts);
+
+      fireAutomationTrigger("Contact created", {
+        contact: contactToAdd,
+      });
+
+      try {
+        const automatedContacts = JSON.parse(
+          localStorage.getItem("flowcrm-contacts") || "[]"
+        );
+
+        if (Array.isArray(automatedContacts)) {
+          setContacts(automatedContacts);
+        }
+      } catch {
+        // Keep the freshly created contact list if stored data is invalid.
+      }
     }
 
     closeModal();
   };
 
   return (
-    <div className="contacts-page">
-      <section className="contacts-page__header">
-        <div>
-          <h1>Contacts</h1>
-          <p>Manage your leads, prospects, and customers.</p>
-        </div>
+    <div className="contacts-page product-page">
+  <section className="contacts-page__header product-page__header">
+    <div className="product-page__heading">
+      <h1 className="product-page__title">
+        Contacts
+      </h1>
 
-        <button
-          type="button"
-          className="contacts-page__add-button"
-          onClick={handleOpenAddModal}
-        >
-          <Plus size={18} />
-          Add Contact
-        </button>
-      </section>
+      <p className="product-page__description">
+        Manage your leads, prospects, and customers.
+      </p>
+    </div>
 
+    <button
+      type="button"
+      className="contacts-page__add-button product-button product-button--primary"
+      onClick={handleOpenAddModal}
+    >
+      <Plus size={18} />
+      Add Contact
+    </button>
+  </section>
       <section className="contacts-page__toolbar">
-        <div className="contacts-page__search">
-          <Search size={18} />
+        <div className="contacts-page__search product-search">
+  <Search size={18} />
 
-          <input
-            type="text"
-            placeholder="Search by name, email, or company..."
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
-        </div>
+  <input
+    type="text"
+    className="product-input"
+    placeholder="Search by name, email, or company..."
+    value={searchTerm}
+    onChange={(event) =>
+      setSearchTerm(event.target.value)
+    }
+  />
+</div>
 
         <div className="contacts-page__filters">
           {["All", "Lead", "Prospect", "Customer"].map((status) => (
@@ -216,7 +247,7 @@ function Contacts() {
         </div>
       </section>
 
-      <section className="contacts-table">
+      <section className="contacts-table product-card">
         <div className="contacts-table__header">
           <span>Contact</span>
           <span>Company</span>
@@ -423,4 +454,3 @@ function Contacts() {
   );
 }
 
-export default Contacts;

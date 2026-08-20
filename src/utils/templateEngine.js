@@ -360,6 +360,63 @@ export const formatTemplateCurrency = (
     return `${normalizedCurrency} ${numericValue.toLocaleString()}`;
   }
 };
+const localizeDuration = (
+  value,
+  language = "en"
+) => {
+  if (!hasValue(value)) {
+    return "";
+  }
+
+  const raw = String(value).trim();
+
+  const durationMatch = raw.match(
+    /^(\d+(?:[.,]\d+)?)\s*(months?|mes(?:es)?|years?|años?|yrs?|mos?)$/i
+  );
+
+  if (!durationMatch) {
+    return raw;
+  }
+
+  const amount = durationMatch[1];
+
+  const numericAmount = Number(
+    amount.replace(",", ".")
+  );
+
+  const unit = durationMatch[2].toLowerCase();
+
+  const isMonth =
+    unit.startsWith("month") ||
+    unit.startsWith("mes") ||
+    unit.startsWith("mo");
+
+  if (language === "es") {
+    return isMonth
+      ? `${amount} ${
+          numericAmount === 1
+            ? "mes"
+            : "meses"
+        }`
+      : `${amount} ${
+          numericAmount === 1
+            ? "año"
+            : "años"
+        }`;
+  }
+
+  return isMonth
+    ? `${amount} ${
+        numericAmount === 1
+          ? "month"
+          : "months"
+      }`
+    : `${amount} ${
+        numericAmount === 1
+          ? "year"
+          : "years"
+      }`;
+};
 
 const formatPercentage = (value) => {
   if (!hasValue(value)) {
@@ -570,11 +627,14 @@ export const buildTemplateVariables = ({
         : "",
 
     roi_period:
-      getFirstAvailableValue(
-        deal,
-        ["roiPeriod"],
-        ""
-      ),
+  localizeDuration(
+    getFirstAvailableValue(
+      deal,
+      ["roiPeriod"],
+      ""
+    ),
+    language
+  ),
 
     implementation_cost:
       hasValue(
@@ -599,25 +659,34 @@ export const buildTemplateVariables = ({
         : "",
 
     savings_period:
-      getFirstAvailableValue(
-        deal,
-        ["savingsPeriod"],
-        ""
-      ),
+  localizeDuration(
+    getFirstAvailableValue(
+      deal,
+      ["savingsPeriod"],
+      ""
+    ),
+    language
+  ),
 
     payback_period:
-      getFirstAvailableValue(
-        deal,
-        ["paybackPeriod"],
-        ""
-      ),
+  localizeDuration(
+    getFirstAvailableValue(
+      deal,
+      ["paybackPeriod"],
+      ""
+    ),
+    language
+  ),
 
     contract_duration:
-      getFirstAvailableValue(
-        deal,
-        ["contractDuration"],
-        ""
-      ),
+  localizeDuration(
+    getFirstAvailableValue(
+      deal,
+      ["contractDuration"],
+      ""
+    ),
+    language
+  ),
 
     billing_model:
       getFirstAvailableValue(

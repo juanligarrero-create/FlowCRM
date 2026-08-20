@@ -110,6 +110,18 @@ const getFollowUpStatus = (daysDifference) => {
   return "scheduled";
 };
 
+const getStatusLabel = (status) => {
+  const labels = {
+    overdue: "Overdue",
+    today: "Due today",
+    upcoming: "Upcoming",
+    scheduled: "Scheduled",
+    unscheduled: "Unscheduled",
+  };
+
+  return labels[status] || status;
+};
+
 const getPriorityScore = ({
   daysDifference,
   dealValue,
@@ -631,18 +643,20 @@ function FollowUps() {
 
               <div className="followup-card__main">
                 <div>
-                  <span
-                    className={`followup-card__status followup-card__status--${item.status}`}
-                  >
-                    {item.status}
-                  </span>
+                  <div className="followup-card__heading">
+                    <span
+                      className={`followup-card__status followup-card__status--${item.status}`}
+                    >
+                      {getStatusLabel(item.status)}
+                    </span>
 
-                  <h2>{item.dealTitle}</h2>
+                    <h2>{item.dealTitle}</h2>
 
-                  <p>
-                    {item.contactName} ·{" "}
-                    {item.companyName}
-                  </p>
+                    <p>
+                      {item.contactName} ·{" "}
+                      {item.companyName}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="followup-card__recommendation">
@@ -664,24 +678,28 @@ function FollowUps() {
 
                 <div className="followup-card__meta">
                   <span>
-                    Value: $
-                    {item.dealValue.toLocaleString()}
+                    <small>Value</small>
+                    <strong>
+                      ${item.dealValue.toLocaleString()}
+                    </strong>
                   </span>
 
                   <span>
-                    Probability:{" "}
-                    {item.probability}%
+                    <small>Probability</small>
+                    <strong>{item.probability}%</strong>
                   </span>
 
                   <span>
-                    {item.followUpDate
-                      ? `Follow-up: ${item.followUpDate}`
-                      : "No follow-up scheduled"}
+                    <small>Follow-up</small>
+                    <strong>
+                      {item.followUpDate || "Not scheduled"}
+                    </strong>
                   </span>
 
                   {item.taskTitle && (
-                    <span>
-                      Task: {item.taskTitle}
+                    <span className="followup-card__meta-task">
+                      <small>Task</small>
+                      <strong>{item.taskTitle}</strong>
                     </span>
                   )}
                 </div>

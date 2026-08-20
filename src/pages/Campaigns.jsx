@@ -27,6 +27,7 @@ import {
 } from "react";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import { useToast } from "../components/ToastProvider.jsx";
+import { fireAutomationTrigger } from "../utils/automationEngine.js";
 import "./Campaigns.css";
 
 const campaignChannels = [
@@ -382,16 +383,39 @@ function Campaigns() {
     };
 
     if (editingCampaignId !== null) {
+      const previousCampaign = campaigns.find(
+        (campaign) => campaign.id === editingCampaignId
+      );
+
+      const updatedCampaign = {
+        ...previousCampaign,
+        ...normalizedCampaign,
+      };
+
       setCampaigns((currentCampaigns) =>
         currentCampaigns.map((campaign) =>
           campaign.id === editingCampaignId
-            ? {
-                ...campaign,
-                ...normalizedCampaign,
-              }
+            ? updatedCampaign
             : campaign
         )
       );
+
+      if (
+        previousCampaign?.status !== "Completed" &&
+        updatedCampaign.status === "Completed"
+      ) {
+        const conversion = calculateRate(
+          updatedCampaign.converted,
+          updatedCampaign.sent
+        );
+
+        fireAutomationTrigger("Campaign completed", {
+          campaign: {
+            ...updatedCampaign,
+            conversion,
+          },
+        });
+      }
 
       toast.success(
         "Campaign updated",
@@ -429,22 +453,45 @@ function Campaigns() {
       (campaign) => campaign.id === campaignId
     );
 
+    if (!selectedCampaign) {
+      return;
+    }
+
+    const updatedCampaign = {
+      ...selectedCampaign,
+      status,
+    };
+
     setCampaigns((currentCampaigns) =>
       currentCampaigns.map((campaign) =>
         campaign.id === campaignId
-          ? {
-              ...campaign,
-              status,
-            }
+          ? updatedCampaign
           : campaign
       )
     );
+
+    if (
+      selectedCampaign.status !== "Completed" &&
+      status === "Completed"
+    ) {
+      const conversion = calculateRate(
+        selectedCampaign.converted,
+        selectedCampaign.sent
+      );
+
+      fireAutomationTrigger("Campaign completed", {
+        campaign: {
+          ...updatedCampaign,
+          conversion,
+        },
+      });
+    }
 
     setOpenMenuId(null);
 
     toast.info(
       "Campaign status updated",
-      `${selectedCampaign?.name || "Campaign"} is now ${status.toLowerCase()}.`
+      `${selectedCampaign.name} is now ${status.toLowerCase()}.`
     );
   };
 
@@ -837,26 +884,24 @@ function Campaigns() {
                   </div>
                 </div>
 
-                <div className="campaign-card__progress">
-                  <div>
-                    <span>Delivery progress</span>
+            <div className="campaign-card__progress">
+  <div className="campaign-card__progress-header">
+    <span>Delivery progress</span>
 
-                    <strong>
-                      {campaign.audience === 0
-                        ? 0
-                        : Math.min(
-                            100,
-                            Math.round(
-                              (campaign.sent /
-                                campaign.audience) *
-                                100
-                            )
-                          )}
-                      %
-                    </strong>
-                  </div>
+    <strong>
+      {campaign.audience === 0
+        ? 0
+        : Math.min(
+            100,
+            Math.round(
+              (campaign.sent / campaign.audience) * 100
+            )
+          )}
+      %
+    </strong>
+  </div>
 
-                  <div className="campaign-card__progress-track">
+  <div className="campaign-card__progress-track">
                     <span
                       style={{
                         width: `${

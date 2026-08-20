@@ -2,6 +2,7 @@ import {
   CheckCheck,
   ChevronLeft,
   Clock3,
+  FileText,
   MessageCircle,
   MoreVertical,
   Paperclip,
@@ -260,8 +261,13 @@ function WhatsApp() {
   const [messageText, setMessageText] = useState("");
   const [showTemplates, setShowTemplates] =
     useState(false);
+  const [showEmojis, setShowEmojis] =
+    useState(false);
   const [showMobileChat, setShowMobileChat] =
     useState(false);
+  const [pendingAttachment, setPendingAttachment] =
+    useState(null);
+  const attachmentInputRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem(
@@ -366,7 +372,46 @@ function WhatsApp() {
     setSelectedContactId(contactId);
     setShowMobileChat(true);
     setShowTemplates(false);
+    setShowEmojis(false);
+    setPendingAttachment(null);
     markConversationAsRead(contactId);
+  };
+
+  const openAttachmentPicker = () => {
+    attachmentInputRef.current?.click();
+  };
+
+  const handleAttachmentChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const maxSize = 10 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      toast.warning(
+        "File is too large",
+        "Choose an attachment smaller than 10 MB."
+      );
+      event.target.value = "";
+      return;
+    }
+
+    setPendingAttachment({
+      name: file.name,
+      size: file.size,
+      type: file.type || "application/octet-stream",
+    });
+
+    setShowTemplates(false);
+    setShowEmojis(false);
+    event.target.value = "";
+  };
+
+  const removePendingAttachment = () => {
+    setPendingAttachment(null);
   };
 
   const sendMessage = (event) => {
@@ -382,10 +427,10 @@ function WhatsApp() {
       return;
     }
 
-    if (!trimmedMessage) {
+    if (!trimmedMessage && !pendingAttachment) {
       toast.warning(
         "Message is empty",
-        "Write a message before sending it."
+        "Write a message or attach a file before sending."
       );
       return;
     }
@@ -394,6 +439,7 @@ function WhatsApp() {
       id: Date.now(),
       sender: "user",
       text: trimmedMessage,
+      attachment: pendingAttachment,
       timestamp: new Date().toISOString(),
       status: "sent",
     };
@@ -409,7 +455,9 @@ function WhatsApp() {
     }));
 
     setMessageText("");
+    setPendingAttachment(null);
     setShowTemplates(false);
+    setShowEmojis(false);
 
     toast.success(
       "Message sent",
@@ -420,6 +468,13 @@ function WhatsApp() {
   const useTemplate = (templateMessage) => {
     setMessageText(templateMessage);
     setShowTemplates(false);
+    setShowEmojis(false);
+  };
+
+  const addEmoji = (emoji) => {
+    setMessageText((currentValue) =>
+      `${currentValue}${emoji}`
+    );
   };
 
   useEffect(() => {
@@ -530,7 +585,9 @@ function WhatsApp() {
 
                           <span>
                             {lastMessage?.text ||
-                              "Start a conversation"}
+                              (lastMessage?.attachment
+                                ? `Attachment: ${lastMessage.attachment.name}`
+                                : "Start a conversation")}
                           </span>
                         </p>
 
@@ -634,7 +691,19 @@ function WhatsApp() {
                       className={`whatsapp-message whatsapp-message--${message.sender}`}
                       key={message.id}
                     >
-                      <p>{message.text}</p>
+                      {message.text && <p>{message.text}</p>}
+
+                      {message.attachment && (
+                        <div className="whatsapp-message__attachment">
+                          <FileText size={18} />
+                          <div>
+                            <strong>{message.attachment.name}</strong>
+                            <span>
+                              {(message.attachment.size / 1024).toFixed(1)} KB
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       <footer>
                         <time>
@@ -667,6 +736,17 @@ function WhatsApp() {
                           Select a reusable response
                         </span>
                       </div>
+
+                      <button
+                        type="button"
+                        className="whatsapp-templates__close"
+                        aria-label="Close message templates"
+                        onClick={() =>
+                          setShowTemplates(false)
+                        }
+                      >
+                        ×
+                      </button>
                     </div>
 
                     <div className="whatsapp-templates__list">
@@ -695,13 +775,41 @@ function WhatsApp() {
                   </div>
                 )}
 
+                {pendingAttachment && (
+                  <div className="whatsapp-composer__attachment-preview">
+                    <FileText size={17} />
+                    <div>
+                      <strong>{pendingAttachment.name}</strong>
+                      <span>
+                        {(pendingAttachment.size / 1024).toFixed(1)} KB
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Remove attachment"
+                      onClick={removePendingAttachment}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+
                 <form onSubmit={sendMessage}>
                   <button
                     type="button"
                     aria-label="Attach a file"
+                    onClick={openAttachmentPicker}
                   >
                     <Paperclip size={19} />
                   </button>
+
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    className="whatsapp-composer__file-input"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                    onChange={handleAttachmentChange}
+                  />
 
                   <div className="whatsapp-composer__input">
                     <textarea
@@ -727,12 +835,13 @@ function WhatsApp() {
                     <button
                       type="button"
                       aria-label="Open message templates"
-                      onClick={() =>
+                      onClick={() => {
                         setShowTemplates(
                           (currentValue) =>
                             !currentValue
-                        )
-                      }
+                        );
+                        setShowEmojis(false);
+                      }}
                     >
                       <Clock3 size={18} />
                     </button>
@@ -740,6 +849,13 @@ function WhatsApp() {
                     <button
                       type="button"
                       aria-label="Add emoji"
+                      onClick={() => {
+                        setShowEmojis(
+                          (currentValue) =>
+                            !currentValue
+                        );
+                        setShowTemplates(false);
+                      }}
                     >
                       <Smile size={18} />
                     </button>
@@ -753,6 +869,57 @@ function WhatsApp() {
                     <Send size={19} />
                   </button>
                 </form>
+
+                {showEmojis && (
+                  <div className="whatsapp-emoji-picker">
+                    <div className="whatsapp-emoji-picker__header">
+                      <strong>Emojis</strong>
+
+                      <button
+                        type="button"
+                        aria-label="Close emoji picker"
+                        onClick={() =>
+                          setShowEmojis(false)
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="whatsapp-emoji-picker__grid">
+                      {[
+                        "😀",
+                        "😂",
+                        "😊",
+                        "👍",
+                        "🙏",
+                        "❤️",
+                        "🔥",
+                        "🎉",
+                        "✅",
+                        "👋",
+                        "💪",
+                        "🤝",
+                        "🙂",
+                        "😉",
+                        "👏",
+                        "🚀",
+                        "💯",
+                        "📞",
+                      ].map((emoji) => (
+                        <button
+                          type="button"
+                          key={emoji}
+                          onClick={() =>
+                            addEmoji(emoji)
+                          }
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <p>
                   Messages are simulated and stored locally

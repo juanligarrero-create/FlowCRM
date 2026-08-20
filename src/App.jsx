@@ -22,6 +22,7 @@ import WhatsApp from "./pages/WhatsApp.jsx";
 
 import Layout from "./components/Layout.jsx";
 import { ToastProvider } from "./components/ToastProvider.jsx";
+import { NotificationsProvider } from "./context/Notificationscontext.jsx";
 
 import "./App.css";
 
@@ -29,80 +30,86 @@ function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
+        <NotificationsProvider>
+          <Layout>
+            <Routes>
+              <Route
+                path="/"
+                element={<Dashboard />}
+              />
 
-            <Route
-              path="/contacts"
-              element={<Contacts />}
-            />
+              <Route
+                path="/contacts"
+                element={<Contacts />}
+              />
 
-            <Route
-              path="/contacts/:id"
-              element={<ContactDetails />}
-            />
+              <Route
+                path="/contacts/:id"
+                element={<ContactDetails />}
+              />
 
-            <Route
-              path="/companies"
-              element={<Companies />}
-            />
+              <Route
+                path="/companies"
+                element={<Companies />}
+              />
 
-            <Route
-              path="/companies/:id"
-              element={<CompanyDetails />}
-            />
+              <Route
+                path="/companies/:id"
+                element={<CompanyDetails />}
+              />
 
-            <Route
-              path="/deals"
-              element={<Deals />}
-            />
-            <Route
-              path="/follow-ups"
-              element={<FollowUps />}
-            />
+              <Route
+                path="/deals"
+                element={<Deals />}
+              />
 
-            <Route
-              path="/deals/:id"
-              element={<DealDetails />}
-            />
+              <Route
+                path="/follow-ups"
+                element={<FollowUps />}
+              />
 
-            <Route
-              path="/tasks"
-              element={<Tasks />}
-            />
+              <Route
+                path="/deals/:id"
+                element={<DealDetails />}
+              />
 
-            <Route
-              path="/whatsapp"
-              element={<WhatsApp />}
-            />
+              <Route
+                path="/tasks"
+                element={<Tasks />}
+              />
 
-            <Route
-              path="/campaigns"
-              element={<Campaigns />}
-            />
+              <Route
+                path="/whatsapp"
+                element={<WhatsApp />}
+              />
 
-            <Route
-              path="/automations"
-              element={<Automations />}
-            />
+              <Route
+                path="/campaigns"
+                element={<Campaigns />}
+              />
 
-            <Route
-              path="/analytics"
-              element={<Analytics />}
-            />
+              <Route
+                path="/automations"
+                element={<Automations />}
+              />
 
-            <Route
-              path="/ai-writer"
-              element={<AIWriter />}
-            />
+              <Route
+                path="/analytics"
+                element={<Analytics />}
+              />
 
-            <Route
-              path="/settings"
-              element={<Settings />}
-            />
-          </Routes>
-        </Layout>
+              <Route
+                path="/ai-writer"
+                element={<AIWriter />}
+              />
+
+              <Route
+                path="/settings"
+                element={<Settings />}
+              />
+            </Routes>
+          </Layout>
+        </NotificationsProvider>
       </ToastProvider>
     </BrowserRouter>
   );

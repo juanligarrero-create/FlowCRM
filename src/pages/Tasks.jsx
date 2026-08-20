@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import "./Tasks.css";
+import { fireAutomationTrigger } from "../utils/automationEngine";
 
 const taskStatuses = ["To Do", "In Progress", "Completed"];
 const taskPriorities = ["Low", "Medium", "High"];
@@ -379,16 +380,51 @@ function Tasks() {
     };
 
     if (editingTaskId !== null) {
-      setTasks((currentTasks) =>
-        currentTasks.map((task) =>
-          task.id === editingTaskId
-            ? {
-                ...task,
-                ...normalizedTask,
-              }
-            : task
-        )
+      const previousTask = tasks.find(
+        (task) => task.id === editingTaskId
       );
+
+      const updatedTask = previousTask
+        ? {
+            ...previousTask,
+            ...normalizedTask,
+          }
+        : null;
+
+      const nextTasks = tasks.map((task) =>
+        task.id === editingTaskId && updatedTask
+          ? updatedTask
+          : task
+      );
+
+      const wasJustCompleted =
+        previousTask &&
+        previousTask.status !== "Completed" &&
+        updatedTask?.status === "Completed";
+
+      if (wasJustCompleted) {
+        localStorage.setItem(
+          "flowcrm-tasks",
+          JSON.stringify(nextTasks)
+        );
+
+        fireAutomationTrigger("Task completed", {
+          task: updatedTask,
+        });
+
+        try {
+          setTasks(
+            JSON.parse(
+              localStorage.getItem("flowcrm-tasks") ||
+                "[]"
+            )
+          );
+        } catch {
+          setTasks(nextTasks);
+        }
+      } else {
+        setTasks(nextTasks);
+      }
     } else {
       const newTask = {
         id: Date.now(),
@@ -423,16 +459,51 @@ function Tasks() {
   };
 
   const updateTaskStatus = (taskId, status) => {
-    setTasks((currentTasks) =>
-      currentTasks.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              status,
-            }
-          : task
-      )
+    const previousTask = tasks.find(
+      (task) => task.id === taskId
     );
+
+    if (!previousTask) {
+      setOpenMenuId(null);
+      return;
+    }
+
+    const updatedTask = {
+      ...previousTask,
+      status,
+    };
+
+    const nextTasks = tasks.map((task) =>
+      task.id === taskId ? updatedTask : task
+    );
+
+    const wasJustCompleted =
+      previousTask.status !== "Completed" &&
+      status === "Completed";
+
+    if (wasJustCompleted) {
+      localStorage.setItem(
+        "flowcrm-tasks",
+        JSON.stringify(nextTasks)
+      );
+
+      fireAutomationTrigger("Task completed", {
+        task: updatedTask,
+      });
+
+      try {
+        setTasks(
+          JSON.parse(
+            localStorage.getItem("flowcrm-tasks") ||
+              "[]"
+          )
+        );
+      } catch {
+        setTasks(nextTasks);
+      }
+    } else {
+      setTasks(nextTasks);
+    }
 
     setOpenMenuId(null);
   };
@@ -492,16 +563,51 @@ const handleDropTask = (status) => {
     return;
   }
 
-  setTasks((currentTasks) =>
-    currentTasks.map((task) =>
-      task.id === draggedTaskId
-        ? {
-            ...task,
-            status,
-          }
-        : task
-    )
+  const previousTask = tasks.find(
+    (task) => task.id === draggedTaskId
   );
+
+  if (!previousTask) {
+    setDraggedTaskId(null);
+    return;
+  }
+
+  const updatedTask = {
+    ...previousTask,
+    status,
+  };
+
+  const nextTasks = tasks.map((task) =>
+    task.id === draggedTaskId ? updatedTask : task
+  );
+
+  const wasJustCompleted =
+    previousTask.status !== "Completed" &&
+    status === "Completed";
+
+  if (wasJustCompleted) {
+    localStorage.setItem(
+      "flowcrm-tasks",
+      JSON.stringify(nextTasks)
+    );
+
+    fireAutomationTrigger("Task completed", {
+      task: updatedTask,
+    });
+
+    try {
+      setTasks(
+        JSON.parse(
+          localStorage.getItem("flowcrm-tasks") ||
+            "[]"
+        )
+      );
+    } catch {
+      setTasks(nextTasks);
+    }
+  } else {
+    setTasks(nextTasks);
+  }
 
   setDraggedTaskId(null);
 };

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import { useToast } from "../components/ToastProvider.jsx";
+import { fireAutomationTrigger } from "../utils/automationEngine.js";
 import {
   Building2,
   CalendarDays,
@@ -597,11 +598,47 @@ function Deals() {
     };
 
     if (editingDealId !== null) {
-      setDeals((currentDeals) =>
-        currentDeals.map((deal) =>
-          deal.id === editingDealId ? { ...deal, ...normalizedDeal } : deal
-        )
+      const previousDeal = deals.find(
+        (deal) => deal.id === editingDealId
       );
+      const updatedDeal = {
+        ...previousDeal,
+        ...normalizedDeal,
+        id: editingDealId,
+      };
+
+      const updatedDeals = deals.map((deal) =>
+        deal.id === editingDealId ? updatedDeal : deal
+      );
+
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(updatedDeals)
+      );
+      setDeals(updatedDeals);
+
+      if (
+        previousDeal &&
+        previousDeal.stage !== updatedDeal.stage
+      ) {
+        fireAutomationTrigger("Deal stage changed", {
+          deal: updatedDeal,
+          previousStage: previousDeal.stage,
+          newStage: updatedDeal.stage,
+        });
+
+        try {
+          const automatedDeals = JSON.parse(
+            localStorage.getItem(STORAGE_KEY) || "[]"
+          );
+
+          if (Array.isArray(automatedDeals)) {
+            setDeals(automatedDeals);
+          }
+        } catch {
+          // Keep the manually updated deals if stored data is invalid.
+        }
+      }
     } else {
       setDeals((currentDeals) => [
         ...currentDeals,
@@ -635,17 +672,49 @@ function Deals() {
   };
 
   const moveDealToStage = (dealId, stage) => {
-    setDeals((currentDeals) =>
-      currentDeals.map((deal) =>
-        deal.id === dealId
-          ? { ...deal, stage, probability: stageProbabilities[stage] }
-          : deal
-      )
-    );
     const movedDeal = deals.find((deal) => deal.id === dealId);
+    if (!movedDeal || movedDeal.stage === stage) {
+      setOpenMenuId(null);
+      return;
+    }
+
+    const updatedDeal = {
+      ...movedDeal,
+      stage,
+      probability: stageProbabilities[stage],
+    };
+
+    const updatedDeals = deals.map((deal) =>
+      deal.id === dealId ? updatedDeal : deal
+    );
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(updatedDeals)
+    );
+    setDeals(updatedDeals);
+
+    fireAutomationTrigger("Deal stage changed", {
+      deal: updatedDeal,
+      previousStage: movedDeal.stage,
+      newStage: stage,
+    });
+
+    try {
+      const automatedDeals = JSON.parse(
+        localStorage.getItem(STORAGE_KEY) || "[]"
+      );
+
+      if (Array.isArray(automatedDeals)) {
+        setDeals(automatedDeals);
+      }
+    } catch {
+      // Keep the moved deal if stored data is invalid.
+    }
+
     toast.info(
       t.moved,
-      t.movedBody(movedDeal?.title || "Deal", stageLabels[stage][language])
+      t.movedBody(movedDeal.title || "Deal", stageLabels[stage][language])
     );
     setOpenMenuId(null);
   };
